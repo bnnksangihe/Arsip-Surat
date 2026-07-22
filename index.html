@@ -314,7 +314,16 @@
     bannerDismissed: false,
     disposisiModalId: null,
     disposisiModalStatus: "",
-    disposisiNoteDraft: ""
+    disposisiNoteDraft: "",
+    showMigrate: false,
+    migrateStep: "intro",
+    migrateDestToken: null,
+    migrateDestEmail: "",
+    migrateDestFolderId: null,
+    migrateTotal: 0,
+    migrateDone: 0,
+    migrateFailed: [],
+    migrateRunning: false
   };
 
   function el(tag, attrs, children){
@@ -356,6 +365,140 @@
     for(var k in extra) h[k] = extra[k];
     return h;
   }
+  function headersFor(token, extra){
+    var h = {"Authorization": "Bearer " + token};
+    for(var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  function ensureFolderWithToken(token){
+    var q = "mimeType='application/vnd.google-apps.folder' and name='"+FOLDER_NAME+"' and trashed=false";
+    return fetch("https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&fields=files(id,name)", {
+      headers: headersFor(token, {})
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if(data.files && data.files.length > 0) return data.files[0].id;
+      return fetch("https://www.googleapis.com/drive/v3/files", {
+        method:"POST",
+        headers: headersFor(token, {"Content-Type":"application/json"}),
+        body: JSON.stringify({name: FOLDER_NAME, mimeType:"application/vnd.google-apps.folder"})
+      }).then(function(r){ return r.json(); }).then(function(f){ return f.id; });
+    });
+  }
+
+  function openMigrate(){
+    state.showMigrate = true;
+    state.migrateStep = "intro";
+    state.migrateDestToken = null;
+    state.migrateDestEmail = "";
+    state.migrateDestFolderId = null;
+    state.migrateTotal = 0;
+    state.migrateDone = 0;
+    state.migrateFailed = [];
+    state.migrateRunning = false;
+    render();
+  }
+  function closeMigrate(){ state.showMigrate = false; render(); }
+
+  function connectMigrateDestination(){
+    waitForGis(6000).then(function(){
+      var tc = google.accounts.oauth2.initTokenClient({
+        client_id: state.clientId,
+        scope: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email",
+        prompt: "select_account consent",
+        callback: function(resp){
+          if(resp.error){ showToast("error","Gagal memilih akun tujuan: "+resp.error); render(); return; }
+          state.migrateDestToken = resp.access_token;
+          render();
+          fetch("https://www.googleapis.com/oauth2/v3/userinfo", {headers: headersFor(state.migrateDestToken,{})})
+            .then(function(r){ return r.json(); })
+            .then(function(info){
+              state.migrateDestEmail = info.email || "";
+              if(state.connectedEmail && info.email === state.connectedEmail){
+                showToast("error","Ini akun yang sama dengan yang sedang login. Pilih akun Google yang lain.");
+                state.migrateDestToken = null;
+                render();
+                return;
+              }
+              ensureFolderWithToken(state.migrateDestToken).then(function(id){
+                state.migrateDestFolderId = id;
+                state.migrateStep = "ready";
+                render();
+              }).catch(function(){ showToast("error","Gagal menyiapkan folder di akun tujuan."); });
+            });
+        }
+      });
+      tc.requestAccessToken({prompt:"select_account consent"});
+    }).catch(function(){
+      showToast("error","Skrip Google belum siap, coba lagi sebentar.");
+    });
+  }
+
+  function migrateOneFile(letter){
+    return fetch("https://www.googleapis.com/drive/v3/files/"+letter.id+"?alt=media", {
+      headers: apiHeaders()
+    }).then(function(r){
+      if(!r.ok) throw new Error("download_failed");
+      return r.arrayBuffer();
+    }).then(function(buf){
+      var boundary = "arsipsurat_migrate_7729";
+      var delimiter = "\r\n--" + boundary + "\r\n";
+      var closeDelim = "\r\n--" + boundary + "--";
+      var contentType = letter.mimeType || "application/octet-stream";
+      var base64Data = b64FromArrayBuffer(buf);
+      var metadata = {
+        no_surat: letter.no_surat, tanggal: letter.tanggal, jenis: letter.jenis,
+        perihal: letter.perihal, pihak: letter.pihak, status: letter.status,
+        catatan_disposisi: letter.catatan_disposisi
+      };
+      var driveMeta = {
+        name: letter.name,
+        parents: [state.migrateDestFolderId],
+        description: JSON.stringify(metadata)
+      };
+      var body =
+        delimiter + "Content-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(driveMeta) +
+        delimiter + "Content-Type: " + contentType + "\r\nContent-Transfer-Encoding: base64\r\n\r\n" + base64Data +
+        closeDelim;
+      return fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+        method:"POST",
+        headers: headersFor(state.migrateDestToken, {"Content-Type":'multipart/related; boundary="'+boundary+'"'}),
+        body: body
+      }).then(function(r){ return r.json(); }).then(function(data){
+        if(data.error) throw new Error(data.error.message || "upload_failed");
+        return data;
+      });
+    });
+  }
+
+  function runMigration(){
+    state.migrateStep = "running";
+    state.migrateRunning = true;
+    state.migrateTotal = state.letters.length;
+    state.migrateDone = 0;
+    state.migrateFailed = [];
+    render();
+    var queue = state.letters.slice();
+    function next(){
+      if(queue.length === 0){
+        state.migrateRunning = false;
+        state.migrateStep = "done";
+        render();
+        return;
+      }
+      var letter = queue.shift();
+      migrateOneFile(letter).then(function(){
+        state.migrateDone++;
+        render();
+        next();
+      }).catch(function(){
+        state.migrateDone++;
+        state.migrateFailed.push(letter.no_surat || letter.name);
+        render();
+        next();
+      });
+    }
+    next();
+  }
 
   function ensureFolder(){
     var q = "mimeType='application/vnd.google-apps.folder' and name='"+FOLDER_NAME+"' and trashed=false";
@@ -387,6 +530,7 @@
         return {
           id: f.id,
           name: f.name,
+          mimeType: f.mimeType,
           webViewLink: f.webViewLink,
           createdTime: f.createdTime,
           no_surat: meta.no_surat || "",
@@ -738,6 +882,7 @@
     var status = el("div",{class:"conn-status"}, [
       el("span",{class:"conn-dot" + (state.connected ? " on" : "")}),
       el("span",{}, [state.connected ? ("Tersambung" + (state.connectedEmail ? " sebagai " + state.connectedEmail : " ke Google Drive")) : "Belum tersambung"]),
+      state.connected ? el("button",{onclick:openMigrate}, ["Migrasi akun\u2026"]) : null,
       state.connected ? el("button",{onclick:disconnect}, ["Putuskan"]) : null
     ]);
     return el("div",{class:"masthead"}, [
@@ -1061,6 +1206,48 @@
     return el("div",{class:"modal-backdrop"}, [modal]);
   }
 
+  function renderMigrateModal(){
+    var body;
+    if(state.migrateStep === "intro"){
+      body = [
+        el("p",{class:"hint", style:"font-size:13px;color:var(--ink-soft);margin-bottom:1rem;"}, [
+          "Ini akan menyalin seluruh " + state.letters.length + " surat (berkas + datanya) dari akun ",
+          el("strong",{},[state.connectedEmail || "ini"]),
+          " ke folder \u201c" + FOLDER_NAME + "\u201d di akun Google lain. Berkas asli di akun ini ", el("strong",{},["tidak dihapus"]), " \u2014 kamu bisa hapus manual nanti setelah memastikan semuanya tersalin dengan benar."
+        ]),
+        el("button",{class:"btn btn-primary", onclick: connectMigrateDestination}, [icon("login"), " Pilih akun Google tujuan"])
+      ];
+    } else if(state.migrateStep === "ready"){
+      body = [
+        el("p",{class:"hint", style:"font-size:13px;margin-bottom:1rem;"}, [
+          "Akun tujuan: ", el("strong",{},[state.migrateDestEmail]), ". Siap menyalin ", el("strong",{},[String(state.letters.length)]), " surat. Proses berjalan satu per satu dan bisa memakan waktu untuk banyak surat \u2014 jangan tutup halaman ini selama proses berlangsung."
+        ]),
+        el("button",{class:"btn btn-primary", onclick: runMigration}, [icon("copy"), " Mulai migrasi"])
+      ];
+    } else if(state.migrateStep === "running"){
+      body = [
+        el("p",{class:"hint", style:"font-size:13px;margin-bottom:0.5rem;"}, ["Menyalin surat, mohon tunggu\u2026"]),
+        el("p",{style:"font-family:'IBM Plex Mono',monospace;font-size:13px;"}, [state.migrateDone + " / " + state.migrateTotal + " selesai"])
+      ];
+    } else {
+      body = [
+        el("p",{class:"hint", style:"font-size:13px;margin-bottom:0.5rem;"}, [
+          "Selesai. Berhasil menyalin " + (state.migrateTotal - state.migrateFailed.length) + " dari " + state.migrateTotal + " surat ke ", el("strong",{},[state.migrateDestEmail]), "."
+        ]),
+        state.migrateFailed.length > 0 ? el("p",{class:"hint", style:"color:var(--stamp-dark);font-size:12.5px;"}, ["Gagal: " + state.migrateFailed.join(", ") + ". Coba ulangi migrasi untuk yang gagal, atau tambahkan manual."]) : null,
+        el("p",{class:"hint", style:"font-size:12.5px;"}, ["Sekarang kamu bisa login ke aplikasi ini dengan akun " + state.migrateDestEmail + " untuk memakai arsip yang baru, lalu hapus folder \u201c" + FOLDER_NAME + "\u201d di akun lama untuk membebaskan ruang penyimpanan."])
+      ];
+    }
+    var modal = el("div",{class:"modal"}, [
+      el("h2",{}, ["Migrasi ke akun Google lain"]),
+      el("div",{}, body),
+      el("div",{class:"modal-actions"}, [
+        el("button",{class:"btn", onclick:closeMigrate}, [state.migrateStep==="done" ? "Tutup" : "Batal"])
+      ])
+    ]);
+    return el("div",{class:"modal-backdrop"}, [modal]);
+  }
+
   function render(){
     var root = document.getElementById("root");
     root.innerHTML = "";
@@ -1087,6 +1274,9 @@
     }
     if(state.disposisiModalId){
       root.appendChild(renderDisposisiModal());
+    }
+    if(state.showMigrate){
+      root.appendChild(renderMigrateModal());
     }
     if(state.showReport){
       root.appendChild(renderReportModal());
