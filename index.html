@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arsip Surat — Kearsipan Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#ECE5D2;
+    --paper-deep:#E1D7B9;
+    --paper-line:#CBBE97;
+    --ink:#23282B;
+    --ink-soft:#5B6058;
+    --ink-faint:#8A8C7E;
+    --stamp:#A6342A;
+    --stamp-dark:#7A2019;
+    --stamp-bg:#F6E1DC;
+    --gold:#9C7A2E;
+    --gold-bg:#F3E7C9;
+    --teal:#2F6E5C;
+    --teal-bg:#DCEAE3;
+    --plum:#5B4A7A;
+    --plum-bg:#E6E0EF;
+    --white:#FBF9F2;
+    --radius:6px;
+    --shadow:0 1px 2px rgba(35,40,43,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  #arsip-app{
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    padding:0;
+    min-height:100%;
+  }
+  .masthead{
+    border-bottom:3px double var(--ink);
+    padding:1.5rem 1.75rem 1.1rem;
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:1rem;
+    flex-wrap:wrap;
+  }
+  .masthead h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:26px;
+    margin:0 0 4px;
+    letter-spacing:0.3px;
+  }
+  .masthead p{
+    margin:0;
+    font-size:13px;
+    color:var(--ink-soft);
+    font-style:italic;
+    font-family:'Fraunces',serif;
+  }
+  .conn-status{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex-shrink:0;}
+  .conn-dot.on{background:var(--teal);}
+  .conn-status button{
+    border:0;background:none;color:var(--stamp);font-size:12.5px;
+    text-decoration:underline;cursor:pointer;padding:0;font-family:'Inter',sans-serif;
+  }
+
+  .setup-card{
+    margin:1.75rem;
+    background:var(--white);
+    border:1px solid var(--paper-line);
+    border-radius:10px;
+    padding:1.5rem 1.75rem;
+    max-width:560px;
+  }
+  .setup-card h2{
+    font-family:'Fraunces',serif;
+    font-size:18px;
+    font-weight:600;
+    margin:0 0 6px;
+  }
+  .setup-card > p{
+    font-size:13.5px;
+    color:var(--ink-soft);
+    margin:0 0 1.1rem;
+    line-height:1.55;
+  }
+  .setup-steps{
+    margin:0 0 1.25rem;
+    padding-left:1.2rem;
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.7;
+  }
+  .setup-steps li{margin-bottom:4px;}
+  .setup-steps a, .setup-card .inline-link{color:var(--stamp);text-decoration:none;border-bottom:1px solid currentColor;}
+  .setup-card label{
+    display:block;font-size:12.5px;font-weight:600;color:var(--ink);
+    margin-bottom:5px;
+  }
+  .field-row{margin-bottom:1rem;}
+  input[type=text], input[type=date], select, textarea{
+    width:100%;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    padding:9px 10px;
+    border:1px solid var(--paper-line);
+    border-radius:5px;
+    background:var(--white);
+    color:var(--ink);
+  }
+  input:focus, select:focus, textarea:focus{
+    outline:none;border-color:var(--stamp);box-shadow:0 0 0 3px var(--stamp-bg);
+  }
+  .btn{
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    padding:9px 16px;
+    border-radius:5px;
+    border:1px solid var(--ink);
+    background:var(--white);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .btn:hover{background:var(--paper-deep);}
+  .btn-primary{
+    background:var(--stamp);
+    border-color:var(--stamp-dark);
+    color:var(--white);
+  }
+  .btn-primary:hover{background:var(--stamp-dark);}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .hint{font-size:11.5px;color:var(--ink-faint);margin-top:5px;line-height:1.5;}
+
+  .toolbar{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:1rem 1.75rem;
+  }
+  .search-wrap{position:relative;flex:1;min-width:200px;max-width:320px;}
+  .search-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-faint);font-size:15px;}
+  .search-wrap input{padding-left:32px;}
+  .chip-group{display:flex;gap:6px;flex-wrap:wrap;}
+  .chip{
+    font-family:'Inter',sans-serif;
+    font-size:12px;font-weight:500;
+    padding:6px 12px;border-radius:999px;
+    border:1px solid var(--paper-line);
+    background:var(--white);color:var(--ink-soft);
+    cursor:pointer;white-space:nowrap;
+  }
+  .chip.active{background:var(--ink);border-color:var(--ink);color:var(--white);}
+  .toolbar-spacer{flex:1;}
+
+  .ledger-wrap{padding:0 1.75rem 2rem;}
+  table.ledger{width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border-radius:8px;overflow:hidden;border:1px solid var(--paper-line);}
+  table.ledger thead th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;
+    color:var(--ink-soft);font-weight:600;padding:10px 12px;
+    border-bottom:1px solid var(--paper-line);background:var(--paper-deep);
+  }
+  table.ledger tbody tr{border-bottom:1px dashed var(--paper-line);}
+  table.ledger tbody tr:last-child{border-bottom:none;}
+  table.ledger tbody tr:hover{background:var(--stamp-bg);}
+  table.ledger td{padding:11px 12px;vertical-align:middle;color:var(--ink);}
+  .no-surat{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink);}
+  .perihal-cell{font-weight:500;}
+  .sub-cell{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;
+    border:1px dashed currentColor;
+  }
+  .badge.masuk{background:var(--teal-bg);color:var(--teal);}
+  .badge.keluar{background:var(--plum-bg);color:var(--plum);}
+  .badge.incomplete{background:var(--gold-bg);color:var(--gold);border:1px dashed var(--gold);}
+  .stamp-badge{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;
+    transform:rotate(-2deg);
+  }
+  .stamp-badge.baru{background:var(--stamp-bg);color:var(--stamp-dark);border:1.5px solid var(--stamp);}
+  .stamp-badge.proses{background:var(--gold-bg);color:var(--gold);border:1.5px solid var(--gold);}
+  .stamp-badge.selesai{background:var(--teal-bg);color:var(--teal);border:1.5px solid var(--teal);}
+  .row-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;}
+  .icon-btn{
+    border:1px solid var(--paper-line);background:var(--white);border-radius:5px;
+    width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink-soft);
+  }
+  .icon-btn:hover{border-color:var(--ink);color:var(--ink);}
+  .file-link{color:var(--stamp);text-decoration:none;font-size:12px;}
+
+  .empty-state{
+    text-align:center;padding:3rem 1rem;color:var(--ink-soft);
+  }
+  .empty-state i{font-size:26px;color:var(--ink-faint);margin-bottom:8px;display:block;}
+  .empty-state p{font-size:13.5px;margin:0 0 1rem;}
+
+  .overlay{
+    position:relative;min-height:1px;
+  }
+  .modal-backdrop{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    width:100%;height:100%;
+    background:rgba(35,40,43,0.45);
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:2rem 1rem;
+    overflow-y:auto;
+    z-index:1000;
+  }
+  .modal{
+    background:var(--white);border-radius:10px;max-width:480px;width:100%;
+    padding:1.5rem 1.75rem;border:1px solid var(--paper-line);
+  }
+  .modal h2{font-family:'Fraunces',serif;font-size:17px;font-weight:600;margin:0 0 1rem;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.85rem;margin-bottom:0.85rem;}
+  .form-grid .full{grid-column:1/-1;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:1.2rem;}
+  .toast{
+    font-size:12.5px;padding:9px 14px;border-radius:6px;margin:0 1.75rem 1rem;
+    display:flex;align-items:center;gap:8px;
+  }
+  .toast.error{background:var(--stamp-bg);color:var(--stamp-dark);border:1px solid var(--stamp);}
+  .toast.info{background:var(--plum-bg);color:var(--plum);border:1px solid var(--plum);}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+  .loading-row{padding:2rem;text-align:center;color:var(--ink-faint);font-size:13px;}
+
+  .notify-banner{
+    margin:0 1.75rem 1rem;
+    background:var(--gold-bg);border:1px solid var(--gold);border-radius:7px;
+    padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--gold);
+  }
+  .notify-banner button{
+    margin-left:auto;border:1px solid var(--gold);background:var(--white);color:var(--gold);
+    font-size:12px;font-weight:600;padding:5px 12px;border-radius:5px;cursor:pointer;
+  }
+  .notify-banner .dismiss{border:none;background:none;color:var(--gold);font-size:16px;cursor:pointer;padding:0 2px;margin-left:6px;}
+
+  .section-title{
+    display:flex;align-items:center;gap:8px;
+    padding:0 1.75rem;margin-bottom:0.7rem;
+  }
+  .section-title h3{font-family:'Fraunces',serif;font-size:15.5px;font-weight:600;margin:0;}
+  .section-title .dot{width:8px;height:8px;border-radius:50%;}
+  .section-title.masuk .dot{background:var(--teal);}
+  .section-title.keluar .dot{background:var(--plum);}
+  .section-title.semua .dot{background:var(--ink);}
+  .section-title .count{font-size:12px;color:var(--ink-faint);}
+
+  .report-modal{max-width:640px;}
+  .report-controls{display:flex;align-items:center;gap:10px;margin-bottom:1.1rem;}
+  .report-controls input[type=month]{width:auto;flex:none;}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.2rem;}
+  .stat-card{
+    background:var(--paper);border:1px solid var(--paper-line);border-radius:7px;
+    padding:12px 10px;text-align:center;
+  }
+  .stat-card .num{font-family:'Fraunces',serif;font-size:22px;font-weight:600;}
+  .stat-card .lbl{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+  .report-table-wrap{max-height:280px;overflow-y:auto;border:1px solid var(--paper-line);border-radius:6px;}
+  .report-empty{font-size:13px;color:var(--ink-faint);text-align:center;padding:2rem 0;}
+</style>
+</head>
+<body>
+<div id="arsip-app">
+  <h2 class="sr-only">Aplikasi pengarsipan surat yang tersambung ke Google Drive, dengan pencatatan nomor surat, tanggal, perihal, pengirim/penerima, berkas, dan status disposisi.</h2>
+  <div id="root"></div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+  var FOLDER_NAME = "Arsip Surat (App)";
+  var STATUS_OPTIONS = [
+    {v:"baru", label:"Baru"},
+    {v:"proses", label:"Diproses"},
+    {v:"selesai", label:"Selesai"}
+  ];
+
+  var state = {
+    clientId: "",
+    connected: false,
+    connectedEmail: "",
+    connecting: false,
+    accessToken: null,
+    folderId: null,
+    letters: [],
+    loadingLetters: false,
+    search: "",
+    dateFilter: "",
+    jenisFilter: "semua",
+    statusFilter: "semua",
+    showForm: false,
+    editingId: null,
+    formError: "",
+    saving: false,
+    toast: null,
+    clientIdInput: "",
+    showReport: false,
+    reportMonth: new Date().toISOString().slice(0,7),
+    bannerDismissed: false,
+    disposisiModalId: null,
+    disposisiModalStatus: "",
+    disposisiNoteDraft: ""
+  };
+
+  function el(tag, attrs, children){
+    var e = document.createElement(tag);
+    attrs = attrs || {};
+    for(var k in attrs){
+      if(k === "class"){ e.className = attrs[k]; }
+      else if(k === "html"){ e.innerHTML = attrs[k]; }
+      else if(k.indexOf("on") === 0 && typeof attrs[k] === "function"){ e.addEventListener(k.slice(2), attrs[k]); }
+      else { e.setAttribute(k, attrs[k]); }
+    }
+    (children||[]).forEach(function(c){
+      if(c === null || c === undefined) return;
+      if(typeof c === "string") e.appendChild(document.createTextNode(c));
+      else e.appendChild(c);
+    });
+    return e;
+  }
+  function icon(name){ return el("i", {class:"ti ti-"+name, "aria-hidden":"true"}); }
+
+  function b64FromArrayBuffer(buf){
+    var bytes = new Uint8Array(buf);
+    var chunk = 0x8000;
+    var out = "";
+    for(var i=0;i<bytes.length;i+=chunk){
+      out += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+    }
+    return btoa(out);
+  }
+
+  function showToast(type, msg){
+    state.toast = {type:type, msg:msg};
+    render();
+    setTimeout(function(){ state.toast = null; render(); }, 5000);
+  }
+
+  function apiHeaders(extra){
+    var h = {"Authorization": "Bearer " + state.accessToken};
+    for(var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  function ensureFolder(){
+    var q = "mimeType='application/vnd.google-apps.folder' and name='"+FOLDER_NAME+"' and trashed=false";
+    return fetch("https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&fields=files(id,name)", {
+      headers: apiHeaders()
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if(data.files && data.files.length > 0){
+        return data.files[0].id;
+      }
+      return fetch("https://www.googleapis.com/drive/v3/files", {
+        method:"POST",
+        headers: apiHeaders({"Content-Type":"application/json"}),
+        body: JSON.stringify({name: FOLDER_NAME, mimeType:"application/vnd.google-apps.folder"})
+      }).then(function(r){ return r.json(); }).then(function(f){ return f.id; });
+    });
+  }
+
+  function loadLetters(){
+    state.loadingLetters = true;
+    render();
+    var q = "'"+state.folderId+"' in parents and trashed=false";
+    fetch("https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&fields=files(id,name,description,createdTime,webViewLink,mimeType)&orderBy=createdTime desc&pageSize=200", {
+      headers: apiHeaders()
+    }).then(function(r){ return r.json(); }).then(function(data){
+      var files = data.files || [];
+      state.letters = files.map(function(f){
+        var meta = {};
+        try{ meta = JSON.parse(f.description || "{}"); }catch(e){ meta = {}; }
+        return {
+          id: f.id,
+          name: f.name,
+          webViewLink: f.webViewLink,
+          createdTime: f.createdTime,
+          no_surat: meta.no_surat || "",
+          tanggal: meta.tanggal || "",
+          jenis: meta.jenis || "masuk",
+          perihal: meta.perihal || "",
+          pihak: meta.pihak || "",
+          status: meta.status || "baru",
+          catatan_disposisi: meta.catatan_disposisi || ""
+        };
+      });
+      state.loadingLetters = false;
+      render();
+    }).catch(function(err){
+      state.loadingLetters = false;
+      showToast("error", "Gagal memuat daftar surat dari Drive.");
+    });
+  }
+
+  function waitForGis(timeoutMs){
+    return new Promise(function(resolve, reject){
+      var waited = 0;
+      var step = 200;
+      var iv = setInterval(function(){
+        if(typeof google !== "undefined" && google.accounts && google.accounts.oauth2){
+          clearInterval(iv);
+          resolve();
+        } else {
+          waited += step;
+          if(waited >= timeoutMs){
+            clearInterval(iv);
+            reject(new Error("gis_unavailable"));
+          }
+        }
+      }, step);
+    });
+  }
+
+  function connectDrive(clientId){
+    if(!clientId){ showToast("error","Masukkan Client ID terlebih dahulu."); return; }
+    state.connecting = true;
+    render();
+    waitForGis(6000).then(function(){ doConnect(clientId); }).catch(function(){
+      state.connecting = false;
+      showToast("error","Skrip login Google tidak bisa dimuat di sini. Ini biasanya karena halaman dibuka di dalam pratinjau Claude, yang memblokir accounts.google.com. Unduh file ini lalu buka lewat browser biasa (server lokal atau hosting seperti GitHub Pages).");
+      render();
+    });
+  }
+
+  function doConnect(clientId){
+    try{
+      var tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email",
+        callback: function(resp){
+          state.connecting = false;
+          if(resp.error){
+            showToast("error", "Gagal menghubungkan: " + resp.error);
+            render();
+            return;
+          }
+          state.accessToken = resp.access_token;
+          state.connected = true;
+          state.clientId = clientId;
+          if(window.storage){
+            window.storage.set("arsip:clientId", clientId, false).catch(function(){});
+          }
+          render();
+          fetch("https://www.googleapis.com/oauth2/v3/userinfo", {headers: apiHeaders()})
+            .then(function(r){ return r.json(); })
+            .then(function(info){ state.connectedEmail = info.email || ""; render(); })
+            .catch(function(){});
+          ensureFolder().then(function(id){
+            state.folderId = id;
+            if(window.storage){ window.storage.set("arsip:folderId", id, false).catch(function(){}); }
+            loadLetters();
+          }).catch(function(){
+            showToast("error","Terhubung, tapi gagal menyiapkan folder Arsip Surat di Drive.");
+          });
+        }
+      });
+      tokenClient.requestAccessToken({prompt: ""});
+    }catch(e){
+      state.connecting = false;
+      showToast("error","Gagal memulai koneksi Google Drive. Periksa Client ID.");
+      render();
+    }
+  }
+
+  function disconnect(){
+    state.connected = false;
+    state.accessToken = null;
+    state.connectedEmail = "";
+    state.letters = [];
+    render();
+  }
+
+  function openAddForm(){
+    state.showForm = true;
+    state.editingId = null;
+    state.formError = "";
+    render();
+  }
+  function openEditForm(id){
+    state.showForm = true;
+    state.editingId = id;
+    state.formError = "";
+    render();
+  }
+  function closeForm(){
+    state.showForm = false;
+    state.editingId = null;
+    render();
+  }
+
+  function submitForm(fields, fileEl){
+    var editing = state.editingId ? state.letters.find(function(l){ return l.id === state.editingId; }) : null;
+    if(!fields.no_surat || !fields.tanggal || !fields.perihal){
+      state.formError = "Nomor surat, tanggal, dan perihal wajib diisi.";
+      render();
+      return;
+    }
+    if(!editing && (!fileEl.files || fileEl.files.length === 0)){
+      state.formError = "Pilih berkas surat untuk diunggah.";
+      render();
+      return;
+    }
+    state.saving = true;
+    state.formError = "";
+    render();
+
+    var metadata = {
+      no_surat: fields.no_surat,
+      tanggal: fields.tanggal,
+      jenis: fields.jenis,
+      perihal: fields.perihal,
+      pihak: fields.pihak,
+      status: fields.status,
+      catatan_disposisi: fields.jenis === "keluar" ? "" : (fields.catatan_disposisi || (editing ? editing.catatan_disposisi : "") || "")
+    };
+
+    if(editing){
+      fetch("https://www.googleapis.com/drive/v3/files/"+editing.id, {
+        method:"PATCH",
+        headers: apiHeaders({"Content-Type":"application/json"}),
+        body: JSON.stringify({description: JSON.stringify(metadata)})
+      }).then(function(r){ return r.json(); }).then(function(){
+        state.saving = false;
+        closeForm();
+        loadLetters();
+        showToast("info","Data surat diperbarui.");
+      }).catch(function(){
+        state.saving = false;
+        state.formError = "Gagal menyimpan perubahan.";
+        render();
+      });
+      return;
+    }
+
+    var file = fileEl.files[0];
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var boundary = "arsipsurat_boundary_29a4";
+      var delimiter = "\r\n--" + boundary + "\r\n";
+      var closeDelim = "\r\n--" + boundary + "--";
+      var contentType = file.type || "application/octet-stream";
+      var base64Data = b64FromArrayBuffer(e.target.result);
+      var driveMeta = {
+        name: fields.no_surat.replace(/[\/\\]/g,"-") + " - " + fields.perihal.slice(0,60),
+        parents: [state.folderId],
+        description: JSON.stringify(metadata)
+      };
+      var body =
+        delimiter +
+        "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+        JSON.stringify(driveMeta) +
+        delimiter +
+        "Content-Type: " + contentType + "\r\n" +
+        "Content-Transfer-Encoding: base64\r\n\r\n" +
+        base64Data +
+        closeDelim;
+
+      fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+        method:"POST",
+        headers: apiHeaders({"Content-Type":'multipart/related; boundary="'+boundary+'"'}),
+        body: body
+      }).then(function(r){ return r.json(); }).then(function(data){
+        state.saving = false;
+        if(data.error){
+          state.formError = "Gagal mengunggah: " + (data.error.message || "coba lagi.");
+          render();
+          return;
+        }
+        closeForm();
+        loadLetters();
+        showToast("info","Surat berhasil diarsipkan.");
+      }).catch(function(){
+        state.saving = false;
+        state.formError = "Gagal mengunggah berkas.";
+        render();
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function deleteLetter(id){
+    fetch("https://www.googleapis.com/drive/v3/files/"+id, {
+      method:"DELETE",
+      headers: apiHeaders()
+    }).then(function(){
+      state.letters = state.letters.filter(function(l){ return l.id !== id; });
+      render();
+      showToast("info","Surat dipindahkan ke sampah Drive.");
+    }).catch(function(){
+      showToast("error","Gagal menghapus surat.");
+    });
+  }
+
+  function patchLetterMeta(id, patch){
+    var letter = state.letters.find(function(l){ return l.id === id; });
+    if(!letter) return Promise.reject();
+    var metadata = {
+      no_surat: letter.no_surat, tanggal: letter.tanggal, jenis: letter.jenis,
+      perihal: letter.perihal, pihak: letter.pihak,
+      status: patch.status !== undefined ? patch.status : letter.status,
+      catatan_disposisi: patch.catatan_disposisi !== undefined ? patch.catatan_disposisi : letter.catatan_disposisi
+    };
+    return fetch("https://www.googleapis.com/drive/v3/files/"+id, {
+      method:"PATCH",
+      headers: apiHeaders({"Content-Type":"application/json"}),
+      body: JSON.stringify({description: JSON.stringify(metadata)})
+    }).then(function(){
+      letter.status = metadata.status;
+      letter.catatan_disposisi = metadata.catatan_disposisi;
+      render();
+    });
+  }
+
+  function quickStatus(id, status){
+    if(status === "selesai"){
+      openDisposisiModal(id, status);
+      return;
+    }
+    patchLetterMeta(id, {status: status}).catch(function(){ showToast("error","Gagal memperbarui status."); });
+  }
+
+  function openDisposisiModal(id, pendingStatus){
+    var letter = state.letters.find(function(l){ return l.id === id; });
+    if(!letter) return;
+    state.disposisiModalId = id;
+    state.disposisiModalStatus = pendingStatus || letter.status;
+    state.disposisiNoteDraft = letter.catatan_disposisi || "";
+    render();
+  }
+  function closeDisposisiModal(){
+    state.disposisiModalId = null;
+    render();
+  }
+  function submitDisposisiNote(){
+    var id = state.disposisiModalId;
+    var note = state.disposisiNoteDraft;
+    var status = state.disposisiModalStatus;
+    patchLetterMeta(id, {status: status, catatan_disposisi: note}).then(function(){
+      closeDisposisiModal();
+      showToast("info","Catatan disposisi disimpan.");
+    }).catch(function(){ showToast("error","Gagal menyimpan catatan disposisi."); });
+  }
+
+  function filteredLetters(){
+    return state.letters.filter(function(l){
+      if(state.jenisFilter !== "semua" && l.jenis !== state.jenisFilter) return false;
+      if(state.dateFilter && l.tanggal !== state.dateFilter) return false;
+      if(state.statusFilter === "__incomplete"){
+        if(l.no_surat && l.perihal) return false;
+      } else if(state.statusFilter !== "semua" && l.status !== state.statusFilter){
+        return false;
+      }
+      if(state.search){
+        var s = state.search.toLowerCase();
+        var hay = (l.no_surat+" "+l.perihal+" "+l.pihak+" "+l.name).toLowerCase();
+        if(hay.indexOf(s) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function statusLabel(v){
+    var o = STATUS_OPTIONS.find(function(x){ return x.v === v; });
+    return o ? o.label : v;
+  }
+
+  function exportToExcel(rows, filename){
+    if(typeof XLSX === "undefined"){
+      showToast("error","Modul ekspor Excel belum siap. Coba lagi sebentar.");
+      return;
+    }
+    if(rows.length === 0){
+      showToast("error","Tidak ada data untuk diekspor.");
+      return;
+    }
+    var data = rows.map(function(l){
+      return {
+        "No. Surat": l.no_surat,
+        "Tanggal": l.tanggal,
+        "Jenis": l.jenis === "keluar" ? "Keluar" : "Masuk",
+        "Perihal": l.perihal,
+        "Pengirim/Penerima": l.pihak,
+        "Status Disposisi": l.jenis === "keluar" ? "" : statusLabel(l.status),
+        "Catatan Disposisi": l.jenis === "keluar" ? "" : (l.catatan_disposisi || ""),
+        "Link Berkas": l.webViewLink || ""
+      };
+    });
+    var ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [{wch:20},{wch:12},{wch:10},{wch:40},{wch:24},{wch:16},{wch:35},{wch:40}];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Arsip Surat");
+    XLSX.writeFile(wb, filename);
+    showToast("info","Berhasil diekspor ke Excel.");
+  }
+
+  function lettersInMonth(monthStr){
+    return state.letters.filter(function(l){ return l.tanggal && l.tanggal.slice(0,7) === monthStr; });
+  }
+
+  function monthStats(monthStr){
+    var rows = lettersInMonth(monthStr);
+    var stats = {total: rows.length, masuk:0, keluar:0, selesai:0, belum:0};
+    rows.forEach(function(l){
+      if(l.jenis === "keluar"){ stats.keluar++; }
+      else { stats.masuk++; if(l.status === "selesai") stats.selesai++; else stats.belum++; }
+    });
+    return {rows:rows, stats:stats};
+  }
+
+  function belumDiprosesCount(){
+    return state.letters.filter(function(l){ return l.jenis !== "keluar" && (l.status === "baru" || l.status === "proses"); }).length;
+  }
+
+  function openReport(){ state.showReport = true; render(); }
+  function closeReport(){ state.showReport = false; render(); }
+
+  function statusBadge(status){
+    var opt = STATUS_OPTIONS.find(function(o){ return o.v === status; }) || STATUS_OPTIONS[0];
+    var cls = status === "selesai" ? "selesai" : (status === "proses" ? "proses" : "baru");
+    return el("span",{class:"stamp-badge "+cls}, [icon("stamp"), opt.label]);
+  }
+
+  function renderMasthead(){
+    var status = el("div",{class:"conn-status"}, [
+      el("span",{class:"conn-dot" + (state.connected ? " on" : "")}),
+      el("span",{}, [state.connected ? ("Tersambung" + (state.connectedEmail ? " sebagai " + state.connectedEmail : " ke Google Drive")) : "Belum tersambung"]),
+      state.connected ? el("button",{onclick:disconnect}, ["Putuskan"]) : null
+    ]);
+    return el("div",{class:"masthead"}, [
+      el("div",{}, [
+        el("h1",{}, ["Arsip Surat"]),
+        el("p",{}, ["Buku agenda kearsipan digital, tersambung ke Google Drive"])
+      ]),
+      status
+    ]);
+  }
+
+  function renderSetup(){
+    var input = el("input",{type:"text", placeholder:"contoh: 1234567890-abc.apps.googleusercontent.com", value: state.clientIdInput});
+    input.addEventListener("input", function(e){ state.clientIdInput = e.target.value; });
+    var connectBtn = el("button",{class:"btn btn-primary", onclick:function(){ connectDrive(state.clientIdInput.trim()); }}, [state.connecting ? "Menghubungkan…" : "Hubungkan ke Google Drive"]);
+    if(state.connecting) connectBtn.disabled = true;
+
+    return el("div",{class:"setup-card"}, [
+      el("h2",{}, ["Sambungkan ke Google Drive"]),
+      el("p",{}, ["Aplikasi ini menyimpan setiap surat langsung sebagai berkas di Google Drive kamu, di dalam folder \u201c" + FOLDER_NAME + "\u201d. Butuh OAuth Client ID sekali saja, dibuat sendiri di Google Cloud Console agar hanya kamu yang punya akses."]),
+      el("ol",{class:"setup-steps"}, [
+        el("li",{}, [el("a",{href:"https://console.cloud.google.com/projectcreate", target:"_blank"}, ["Buat project"]), " baru di Google Cloud Console (atau pakai project yang sudah ada)."]),
+        el("li",{}, ["Aktifkan ", el("strong",{},["Google Drive API"]), " lewat menu API \u0026 Services \u2192 Library."]),
+        el("li",{}, ["Atur OAuth consent screen: pilih External, isi nama aplikasi, tambahkan emailmu sebagai test user."]),
+        el("li",{}, ["Buat kredensial ", el("strong",{},["OAuth Client ID"]), " bertipe \u201cWeb application\u201d."]),
+        el("li",{}, ["Di kolom Authorized JavaScript origins, tambahkan origin tempat halaman ini dibuka (lihat catatan di bawah)."]),
+        el("li",{}, ["Salin Client ID yang dihasilkan, tempel di kolom bawah ini."])
+      ]),
+      el("div",{class:"toast error", style:"margin:0 0 1.1rem;"}, [icon("alert-circle"), "Dibuka di dalam pratinjau Claude? Login Google biasanya diblokir di sana. Unduh berkas ini (tombol unduh di pojok kanan atas pratinjau), lalu buka lewat browser biasa \u2014 server lokal atau hosting seperti GitHub Pages."]),
+      el("div",{class:"field-row"}, [
+        el("label",{}, ["OAuth Client ID"]),
+        input,
+        el("p",{class:"hint"}, ["Jika koneksi gagal karena \u201corigin tidak diizinkan\u201d, buka console browser (F12) untuk melihat origin persis yang perlu ditambahkan di Google Cloud Console, lalu ulangi."])
+      ]),
+      connectBtn
+    ]);
+  }
+
+  function renderToolbar(){
+    var searchInput = el("input",{type:"text", placeholder:"Cari nomor surat, perihal, atau pihak\u2026", value: state.search});
+    searchInput.addEventListener("input", function(e){ state.search = e.target.value; render(); });
+
+    var dateInput = el("input",{type:"date", style:"width:auto;", value: state.dateFilter});
+    dateInput.addEventListener("change", function(e){ state.dateFilter = e.target.value; render(); });
+    var dateWrap = el("div",{style:"display:flex;align-items:center;gap:4px;"}, [
+      dateInput,
+      state.dateFilter ? el("button",{class:"icon-btn", title:"Hapus filter tanggal", onclick:function(){ state.dateFilter=""; render(); }}, ["\u00d7"]) : null
+    ]);
+
+    function chip(label, active, onclick){
+      return el("button",{class:"chip"+(active?" active":""), onclick:onclick}, [label]);
+    }
+
+    var jenisChips = el("div",{class:"chip-group"}, [
+      chip("Semua jenis", state.jenisFilter==="semua", function(){ state.jenisFilter="semua"; render(); }),
+      chip("Masuk", state.jenisFilter==="masuk", function(){ state.jenisFilter="masuk"; render(); }),
+      chip("Keluar", state.jenisFilter==="keluar", function(){ state.jenisFilter="keluar"; render(); })
+    ]);
+    var statusChips = el("div",{class:"chip-group"}, [
+      chip("Semua status", state.statusFilter==="semua", function(){ state.statusFilter="semua"; render(); })
+    ].concat(STATUS_OPTIONS.map(function(o){
+      return chip(o.label, state.statusFilter===o.v, function(){ state.statusFilter=o.v; render(); });
+    })).concat([
+      chip("Perlu dilengkapi", state.statusFilter==="__incomplete", function(){ state.statusFilter = state.statusFilter==="__incomplete" ? "semua" : "__incomplete"; render(); })
+    ]));
+
+    return el("div",{class:"toolbar"}, [
+      el("div",{class:"search-wrap"}, [icon("search"), searchInput]),
+      dateWrap,
+      jenisChips,
+      statusChips,
+      el("div",{class:"toolbar-spacer"}),
+      el("button",{class:"btn", onclick: openReport, title:"Laporan bulanan"}, [icon("calendar-stats"), " Laporan"]),
+      el("button",{class:"btn", onclick: function(){ exportToExcel(filteredLetters(), "arsip-surat.xlsx"); }, title:"Ekspor daftar yang tampil ke Excel"}, [icon("file-spreadsheet"), " Ekspor"]),
+      el("button",{class:"btn", onclick: loadLetters, title:"Muat ulang daftar dari Drive"}, [icon("refresh"), " Refresh"]),
+      el("button",{class:"btn btn-primary", onclick: openAddForm}, [icon("plus"), " Tambah surat"])
+    ]);
+  }
+
+  function fmtDate(d){
+    if(!d) return "\u2013";
+    var parts = d.split("-");
+    if(parts.length !== 3) return d;
+    var months = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    return parts[2] + " " + months[parseInt(parts[1],10)-1] + " " + parts[0];
+  }
+
+  function renderSectionTitle(){
+    var count = filteredLetters().length;
+    var cls, label;
+    if(state.jenisFilter === "masuk"){ cls="masuk"; label="Buku Agenda Surat Masuk"; }
+    else if(state.jenisFilter === "keluar"){ cls="keluar"; label="Buku Agenda Surat Keluar"; }
+    else { cls="semua"; label="Seluruh Arsip Surat"; }
+    return el("div",{class:"section-title "+cls}, [
+      el("span",{class:"dot"}),
+      el("h3",{}, [label]),
+      el("span",{class:"count"}, ["\u2014 " + count + " surat"])
+    ]);
+  }
+
+  function renderBanner(){
+    if(state.bannerDismissed) return null;
+    var n = belumDiprosesCount();
+    if(n === 0) return null;
+    return el("div",{class:"notify-banner"}, [
+      icon("bell"),
+      el("span",{}, [n + " surat belum selesai diproses (status Baru/Diproses)."]),
+      el("button",{onclick:function(){ state.statusFilter="baru"; render(); }}, ["Lihat"]),
+      el("button",{class:"dismiss", title:"Tutup", onclick:function(){ state.bannerDismissed = true; render(); }}, ["\u00d7"])
+    ]);
+  }
+
+  function renderTable(){
+    var rows = filteredLetters();
+    if(state.loadingLetters){
+      return el("div",{class:"loading-row"}, ["Memuat arsip dari Google Drive\u2026"]);
+    }
+    if(rows.length === 0){
+      return el("div",{class:"empty-state"}, [
+        icon("folder-open"),
+        el("p",{}, [state.letters.length === 0 ? "Belum ada surat yang diarsipkan." : "Tidak ada surat yang cocok dengan pencarian atau filter."]),
+        state.letters.length === 0 ? el("button",{class:"btn btn-primary", onclick:openAddForm}, [icon("plus"), " Tambah surat pertama"]) : null
+      ]);
+    }
+    var thead = el("thead",{}, [el("tr",{}, [
+      el("th",{}, ["No. surat"]),
+      el("th",{}, ["Tanggal"]),
+      el("th",{}, ["Perihal"]),
+      el("th",{}, ["Jenis"]),
+      el("th",{}, ["Status disposisi"]),
+      el("th",{style:"text-align:right"}, ["Aksi"])
+    ])]);
+    var tbody = el("tbody",{}, rows.map(function(l){
+      var isIncomplete = !l.no_surat || !l.perihal;
+      var statusCell;
+      if(l.jenis === "keluar"){
+        statusCell = el("span",{style:"color:var(--ink-faint);font-size:12px;"}, ["\u2013 (tidak berlaku)"]);
+      } else {
+        var statusSelect = el("select",{style:"font-size:11.5px;padding:4px 6px;width:auto;border-radius:999px;"}, STATUS_OPTIONS.map(function(o){
+          var opt = el("option",{value:o.v}, [o.label]);
+          if(o.v === l.status) opt.selected = true;
+          return opt;
+        }));
+        statusSelect.addEventListener("change", function(e){ quickStatus(l.id, e.target.value); });
+        statusCell = el("div",{}, [
+          statusSelect,
+          l.catatan_disposisi ? el("div",{class:"sub-cell", style:"max-width:180px;", title:l.catatan_disposisi}, [icon("note"), " " + l.catatan_disposisi.slice(0,40) + (l.catatan_disposisi.length>40?"\u2026":"")]) : null
+        ]);
+      }
+
+      return el("tr",{}, [
+        el("td",{}, [el("span",{class:"no-surat"}, [l.no_surat || "\u2013"])]),
+        el("td",{}, [fmtDate(l.tanggal)]),
+        el("td",{}, [
+          el("div",{class:"perihal-cell"}, [l.perihal || (isIncomplete ? el("span",{class:"badge incomplete"}, [icon("scan"), "Perlu dilengkapi"]) : "\u2013")]),
+          el("div",{class:"sub-cell"}, [l.pihak ? ((l.jenis==="keluar" ? "Kepada: " : "Dari: ") + l.pihak) : (l.name || "")])
+        ]),
+        el("td",{}, [el("span",{class:"badge "+(l.jenis==="keluar"?"keluar":"masuk")}, [l.jenis==="keluar" ? "Keluar" : "Masuk"])]),
+        el("td",{}, [statusCell]),
+        el("td",{}, [el("div",{class:"row-actions"}, [
+          el("a",{class:"file-link", href:l.webViewLink, target:"_blank", title:"Buka berkas"}, [icon("external-link")]),
+          l.jenis !== "keluar" ? el("button",{class:"icon-btn", title:"Catatan disposisi atasan", onclick:function(){ openDisposisiModal(l.id, l.status); }}, [icon("note")]) : null,
+          el("button",{class:"icon-btn", title:"Ubah data", onclick:function(){ openEditForm(l.id); }}, [icon("edit")]),
+          el("button",{class:"icon-btn", title:"Hapus", onclick:function(){ deleteLetter(l.id); }}, [icon("trash")])
+        ])])
+      ]);
+    }));
+    return el("table",{class:"ledger"}, [thead, tbody]);
+  }
+
+  function renderForm(){
+    var editing = state.editingId ? state.letters.find(function(l){ return l.id === state.editingId; }) : null;
+    var noSurat = el("input",{type:"text", placeholder:"005/UND/VII/2026", value: editing ? editing.no_surat : ""});
+    var tanggal = el("input",{type:"date", value: editing ? editing.tanggal : ""});
+    var jenis = el("select",{}, [
+      el("option",{value:"masuk"}, ["Surat masuk"]),
+      el("option",{value:"keluar"}, ["Surat keluar"])
+    ]);
+    jenis.value = editing ? editing.jenis : "masuk";
+    var perihal = el("input",{type:"text", placeholder:"Undangan rapat koordinasi\u2026", value: editing ? editing.perihal : ""});
+    var pihak = el("input",{type:"text", placeholder:"Nama instansi / orang", value: editing ? editing.pihak : ""});
+    var status = el("select",{}, STATUS_OPTIONS.map(function(o){ return el("option",{value:o.v}, [o.label]); }));
+    status.value = editing && editing.status ? editing.status : "baru";
+    var catatan = el("textarea",{rows:2, placeholder:"Hasil/instruksi disposisi atasan (opsional)\u2026"});
+    catatan.value = editing ? (editing.catatan_disposisi || "") : "";
+    var fileInput = el("input",{type:"file"});
+
+    var statusField = el("div",{}, [el("label",{}, ["Status disposisi"]), status]);
+    var catatanField = el("div",{class:"full"}, [el("label",{}, ["Catatan disposisi atasan"]), catatan]);
+    function syncStatusVisibility(){
+      var hide = jenis.value === "keluar";
+      statusField.style.display = hide ? "none" : "";
+      catatanField.style.display = hide ? "none" : "";
+    }
+    jenis.addEventListener("change", syncStatusVisibility);
+    syncStatusVisibility();
+
+    var fileRow = editing
+      ? el("p",{class:"hint"}, ["Berkas yang sudah diunggah tidak bisa diganti di sini. Hapus surat ini lalu tambahkan ulang jika perlu mengganti berkas."])
+      : el("div",{class:"field-row full"}, [ el("label",{}, ["Berkas surat"]), fileInput ]);
+
+    var errorBox = state.formError ? el("div",{class:"toast error", style:"margin:0 0 0.85rem;"}, [icon("alert-circle"), state.formError]) : null;
+
+    var saveBtn = el("button",{class:"btn btn-primary", onclick:function(){
+      submitForm({
+        no_surat: noSurat.value.trim(),
+        tanggal: tanggal.value,
+        jenis: jenis.value,
+        perihal: perihal.value.trim(),
+        pihak: pihak.value.trim(),
+        status: jenis.value === "keluar" ? "" : status.value,
+        catatan_disposisi: jenis.value === "keluar" ? "" : catatan.value.trim()
+      }, fileInput);
+    }}, [state.saving ? "Menyimpan\u2026" : "Simpan"]);
+    if(state.saving) saveBtn.disabled = true;
+
+    var modal = el("div",{class:"modal"}, [
+      el("h2",{}, [editing ? "Ubah data surat" : "Tambah surat baru"]),
+      errorBox,
+      el("div",{class:"form-grid"}, [
+        el("div",{}, [el("label",{}, ["Nomor surat"]), noSurat]),
+        el("div",{}, [el("label",{}, ["Tanggal"]), tanggal]),
+        el("div",{}, [el("label",{}, ["Jenis"]), jenis]),
+        statusField,
+        el("div",{class:"full"}, [el("label",{}, ["Perihal"]), perihal]),
+        el("div",{class:"full"}, [el("label",{}, ["Pengirim / penerima"]), pihak]),
+        catatanField,
+        fileRow
+      ]),
+      el("div",{class:"modal-actions"}, [
+        el("button",{class:"btn", onclick:closeForm}, ["Batal"]),
+        saveBtn
+      ])
+    ]);
+    return el("div",{class:"modal-backdrop"}, [modal]);
+  }
+
+  function renderDisposisiModal(){
+    var letter = state.letters.find(function(l){ return l.id === state.disposisiModalId; });
+    if(!letter) return null;
+    var isCompleting = state.disposisiModalStatus === "selesai";
+    var textarea = el("textarea",{rows:5, placeholder:"Tuliskan instruksi atau hasil disposisi dari atasan, mis. \u201cSetujui, teruskan ke bagian keuangan\u201d\u2026"}, []);
+    textarea.value = state.disposisiNoteDraft;
+    textarea.addEventListener("input", function(e){ state.disposisiNoteDraft = e.target.value; });
+
+    var statusNote = isCompleting
+      ? el("p",{class:"hint"}, ["Status akan diubah menjadi ", el("strong",{},["Selesai"]), " setelah catatan disimpan."])
+      : el("p",{class:"hint"}, ["Mengubah atau menambahkan catatan tanpa mengubah status surat."]);
+
+    var saveBtn = el("button",{class:"btn btn-primary", onclick: submitDisposisiNote}, [isCompleting ? "Simpan \u0026 tandai selesai" : "Simpan catatan"]);
+
+    var modal = el("div",{class:"modal"}, [
+      el("h2",{}, ["Catatan disposisi atasan"]),
+      el("p",{class:"hint", style:"margin-bottom:0.8rem;"}, [el("strong",{},[letter.no_surat || letter.name]), " \u2014 ", letter.perihal || ""]),
+      el("div",{class:"field-row"}, [
+        el("label",{}, ["Hasil / instruksi disposisi"]),
+        textarea
+      ]),
+      statusNote,
+      el("div",{class:"modal-actions"}, [
+        el("button",{class:"btn", onclick:closeDisposisiModal}, ["Batal"]),
+        saveBtn
+      ])
+    ]);
+    return el("div",{class:"modal-backdrop"}, [modal]);
+  }
+
+  function renderReportModal(){
+    var monthInput = el("input",{type:"month", value: state.reportMonth});
+    monthInput.addEventListener("change", function(e){ state.reportMonth = e.target.value; render(); });
+
+    var res = monthStats(state.reportMonth);
+    var s = res.stats;
+    var monthLabelParts = state.reportMonth.split("-");
+    var monthNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+    var monthLabel = monthLabelParts.length===2 ? monthNames[parseInt(monthLabelParts[1],10)-1] + " " + monthLabelParts[0] : state.reportMonth;
+
+    var statCards = el("div",{class:"stat-grid"}, [
+      el("div",{class:"stat-card"}, [el("div",{class:"num"}, [String(s.total)]), el("div",{class:"lbl"}, ["Total surat"])]),
+      el("div",{class:"stat-card"}, [el("div",{class:"num"}, [String(s.masuk)]), el("div",{class:"lbl"}, ["Surat masuk"])]),
+      el("div",{class:"stat-card"}, [el("div",{class:"num"}, [String(s.keluar)]), el("div",{class:"lbl"}, ["Surat keluar"])]),
+      el("div",{class:"stat-card"}, [el("div",{class:"num"}, [String(s.belum)]), el("div",{class:"lbl"}, ["Masuk belum selesai"])])
+    ]);
+
+    var tableBody;
+    if(res.rows.length === 0){
+      tableBody = el("div",{class:"report-empty"}, ["Tidak ada surat pada bulan " + monthLabel + "."]);
+    } else {
+      tableBody = el("div",{class:"report-table-wrap"}, [
+        el("table",{class:"ledger"}, [
+          el("thead",{}, [el("tr",{}, [
+            el("th",{}, ["No. surat"]), el("th",{}, ["Tanggal"]), el("th",{}, ["Perihal"]), el("th",{}, ["Jenis"]), el("th",{}, ["Status"])
+          ])]),
+          el("tbody",{}, res.rows.map(function(l){
+            return el("tr",{}, [
+              el("td",{}, [el("span",{class:"no-surat"}, [l.no_surat || "\u2013"])]),
+              el("td",{}, [fmtDate(l.tanggal)]),
+              el("td",{}, [l.perihal || "\u2013"]),
+              el("td",{}, [el("span",{class:"badge "+(l.jenis==="keluar"?"keluar":"masuk")}, [l.jenis==="keluar" ? "Keluar" : "Masuk"])]),
+              el("td",{}, [l.jenis === "keluar" ? "\u2013" : statusLabel(l.status)])
+            ]);
+          }))
+        ])
+      ]);
+    }
+
+    var modal = el("div",{class:"modal report-modal"}, [
+      el("h2",{}, ["Laporan bulanan"]),
+      el("div",{class:"report-controls"}, [
+        monthInput,
+        el("span",{style:"font-size:12.5px;color:var(--ink-soft);"}, [monthLabel]),
+        el("div",{style:"flex:1"}),
+        el("button",{class:"btn", onclick:function(){ exportToExcel(res.rows, "laporan-surat-"+state.reportMonth+".xlsx"); }}, [icon("file-spreadsheet"), " Ekspor bulan ini"])
+      ]),
+      statCards,
+      tableBody,
+      el("div",{class:"modal-actions"}, [
+        el("button",{class:"btn", onclick:closeReport}, ["Tutup"])
+      ])
+    ]);
+    return el("div",{class:"modal-backdrop"}, [modal]);
+  }
+
+  function render(){
+    var root = document.getElementById("root");
+    root.innerHTML = "";
+    root.appendChild(renderMasthead());
+
+    if(state.toast){
+      root.appendChild(el("div",{class:"toast "+state.toast.type}, [icon(state.toast.type==="error"?"alert-circle":"info-circle"), state.toast.msg]));
+    }
+
+    if(!state.connected){
+      root.appendChild(renderSetup());
+      return;
+    }
+
+    var banner = renderBanner();
+    if(banner) root.appendChild(banner);
+
+    root.appendChild(renderToolbar());
+    root.appendChild(renderSectionTitle());
+    root.appendChild(el("div",{class:"ledger-wrap"}, [renderTable()]));
+
+    if(state.showForm){
+      root.appendChild(renderForm());
+    }
+    if(state.disposisiModalId){
+      root.appendChild(renderDisposisiModal());
+    }
+    if(state.showReport){
+      root.appendChild(renderReportModal());
+    }
+  }
+
+  function init(){
+    render();
+    if(window.storage){
+      window.storage.get("arsip:clientId", false).then(function(r){
+        if(r && r.value){
+          state.clientIdInput = r.value;
+          render();
+        }
+      }).catch(function(){});
+      window.storage.get("arsip:folderId", false).then(function(r){
+        if(r && r.value){ state.folderId = r.value; }
+      }).catch(function(){});
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
