@@ -612,7 +612,7 @@
           });
         }
       });
-      tokenClient.requestAccessToken({prompt: ""});
+      tokenClient.requestAccessToken({prompt: "select_account"});
     }catch(e){
       state.connecting = false;
       showToast("error","Gagal memulai koneksi Google Drive. Periksa Client ID.");
