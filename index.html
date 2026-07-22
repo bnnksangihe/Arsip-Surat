@@ -934,7 +934,7 @@
   }
 
   function renderToolbar(){
-    var searchInput = el("input",{type:"text", placeholder:"Cari nomor surat, perihal, atau pihak\u2026", value: state.search});
+    var searchInput = el("input",{type:"text", placeholder:"Cari nomor surat, perihal, atau pihak\u2026", value: state.search, "data-focusid":"search"});
     searchInput.addEventListener("input", function(e){ state.search = e.target.value; state.currentPage = 1; render(); });
 
     var dateInput = el("input",{type:"date", style:"width:auto;", value: state.dateFilter});
@@ -1285,6 +1285,12 @@
 
   function render(){
     var root = document.getElementById("root");
+
+    var active = document.activeElement;
+    var focusId = (active && active.dataset) ? active.dataset.focusid : null;
+    var selStart = active ? active.selectionStart : null;
+    var selEnd = active ? active.selectionEnd : null;
+
     root.innerHTML = "";
     root.appendChild(renderMasthead());
 
@@ -1294,6 +1300,7 @@
 
     if(!state.connected){
       root.appendChild(renderSetup());
+      restoreFocus(focusId, selStart, selEnd);
       return;
     }
 
@@ -1315,6 +1322,17 @@
     }
     if(state.showReport){
       root.appendChild(renderReportModal());
+    }
+    restoreFocus(focusId, selStart, selEnd);
+  }
+
+  function restoreFocus(focusId, selStart, selEnd){
+    if(!focusId) return;
+    var target = document.querySelector('[data-focusid="'+focusId+'"]');
+    if(!target) return;
+    target.focus();
+    if(typeof selStart === "number" && target.setSelectionRange){
+      try{ target.setSelectionRange(selStart, selEnd); }catch(e){}
     }
   }
 
