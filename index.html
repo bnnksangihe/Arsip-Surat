@@ -272,6 +272,16 @@
   .stat-card .lbl{font-size:11px;color:var(--ink-soft);margin-top:2px;}
   .report-table-wrap{max-height:280px;overflow-y:auto;border:1px solid var(--paper-line);border-radius:6px;}
   .report-empty{font-size:13px;color:var(--ink-faint);text-align:center;padding:2rem 0;}
+
+  .pager{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+    padding:12px 2px 0;
+  }
+  .pager-info{font-size:12px;color:var(--ink-faint);}
+  .pager-controls{display:flex;align-items:center;gap:10px;}
+  .pager-controls .btn{padding:6px 12px;font-size:12.5px;}
+  .pager-controls .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .pager-page{font-size:12.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
 </style>
 </head>
 <body>
@@ -302,6 +312,8 @@
     search: "",
     dateFilter: "",
     jenisFilter: "semua",
+    currentPage: 1,
+    pageSize: 10,
     statusFilter: "semua",
     showForm: false,
     editingId: null,
@@ -923,13 +935,13 @@
 
   function renderToolbar(){
     var searchInput = el("input",{type:"text", placeholder:"Cari nomor surat, perihal, atau pihak\u2026", value: state.search});
-    searchInput.addEventListener("input", function(e){ state.search = e.target.value; render(); });
+    searchInput.addEventListener("input", function(e){ state.search = e.target.value; state.currentPage = 1; render(); });
 
     var dateInput = el("input",{type:"date", style:"width:auto;", value: state.dateFilter});
-    dateInput.addEventListener("change", function(e){ state.dateFilter = e.target.value; render(); });
+    dateInput.addEventListener("change", function(e){ state.dateFilter = e.target.value; state.currentPage = 1; render(); });
     var dateWrap = el("div",{style:"display:flex;align-items:center;gap:4px;"}, [
       dateInput,
-      state.dateFilter ? el("button",{class:"icon-btn", title:"Hapus filter tanggal", onclick:function(){ state.dateFilter=""; render(); }}, ["\u00d7"]) : null
+      state.dateFilter ? el("button",{class:"icon-btn", title:"Hapus filter tanggal", onclick:function(){ state.dateFilter=""; state.currentPage=1; render(); }}, ["\u00d7"]) : null
     ]);
 
     function chip(label, active, onclick){
@@ -937,16 +949,16 @@
     }
 
     var jenisChips = el("div",{class:"chip-group"}, [
-      chip("Semua jenis", state.jenisFilter==="semua", function(){ state.jenisFilter="semua"; render(); }),
-      chip("Masuk", state.jenisFilter==="masuk", function(){ state.jenisFilter="masuk"; render(); }),
-      chip("Keluar", state.jenisFilter==="keluar", function(){ state.jenisFilter="keluar"; render(); })
+      chip("Semua jenis", state.jenisFilter==="semua", function(){ state.jenisFilter="semua"; state.currentPage=1; render(); }),
+      chip("Masuk", state.jenisFilter==="masuk", function(){ state.jenisFilter="masuk"; state.currentPage=1; render(); }),
+      chip("Keluar", state.jenisFilter==="keluar", function(){ state.jenisFilter="keluar"; state.currentPage=1; render(); })
     ]);
     var statusChips = el("div",{class:"chip-group"}, [
-      chip("Semua status", state.statusFilter==="semua", function(){ state.statusFilter="semua"; render(); })
+      chip("Semua status", state.statusFilter==="semua", function(){ state.statusFilter="semua"; state.currentPage=1; render(); })
     ].concat(STATUS_OPTIONS.map(function(o){
-      return chip(o.label, state.statusFilter===o.v, function(){ state.statusFilter=o.v; render(); });
+      return chip(o.label, state.statusFilter===o.v, function(){ state.statusFilter=o.v; state.currentPage=1; render(); });
     })).concat([
-      chip("Perlu dilengkapi", state.statusFilter==="__incomplete", function(){ state.statusFilter = state.statusFilter==="__incomplete" ? "semua" : "__incomplete"; render(); })
+      chip("Perlu dilengkapi", state.statusFilter==="__incomplete", function(){ state.statusFilter = state.statusFilter==="__incomplete" ? "semua" : "__incomplete"; state.currentPage=1; render(); })
     ]));
 
     return el("div",{class:"toolbar"}, [
@@ -996,17 +1008,23 @@
   }
 
   function renderTable(){
-    var rows = filteredLetters();
+    var allRows = filteredLetters();
     if(state.loadingLetters){
       return el("div",{class:"loading-row"}, ["Memuat arsip dari Google Drive\u2026"]);
     }
-    if(rows.length === 0){
+    if(allRows.length === 0){
       return el("div",{class:"empty-state"}, [
         icon("folder-open"),
         el("p",{}, [state.letters.length === 0 ? "Belum ada surat yang diarsipkan." : "Tidak ada surat yang cocok dengan pencarian atau filter."]),
         state.letters.length === 0 ? el("button",{class:"btn btn-primary", onclick:openAddForm}, [icon("plus"), " Tambah surat pertama"]) : null
       ]);
     }
+    var totalPages = Math.max(1, Math.ceil(allRows.length / state.pageSize));
+    if(state.currentPage > totalPages) state.currentPage = totalPages;
+    if(state.currentPage < 1) state.currentPage = 1;
+    var startIdx = (state.currentPage - 1) * state.pageSize;
+    var rows = allRows.slice(startIdx, startIdx + state.pageSize);
+
     var thead = el("thead",{}, [el("tr",{}, [
       el("th",{}, ["No. surat"]),
       el("th",{}, ["Tanggal"]),
@@ -1050,7 +1068,24 @@
         ])])
       ]);
     }));
-    return el("table",{class:"ledger"}, [thead, tbody]);
+    var table = el("table",{class:"ledger"}, [thead, tbody]);
+
+    var prevBtn = el("button",{class:"btn", onclick:function(){ state.currentPage--; render(); }}, [icon("chevron-left"), " Sebelumnya"]);
+    prevBtn.disabled = state.currentPage <= 1;
+    var nextBtn = el("button",{class:"btn", onclick:function(){ state.currentPage++; render(); }}, ["Berikutnya ", icon("chevron-right")]);
+    nextBtn.disabled = state.currentPage >= totalPages;
+
+    var pager = el("div",{class:"pager"}, [
+      el("span",{class:"pager-info"}, [
+        "Menampilkan " + (startIdx+1) + "\u2013" + Math.min(startIdx+state.pageSize, allRows.length) + " dari " + allRows.length + " surat"
+      ]),
+      el("div",{class:"pager-controls"}, [
+        prevBtn,
+        el("span",{class:"pager-page"}, ["Halaman " + state.currentPage + " / " + totalPages]),
+        nextBtn
+      ])
+    ]);
+    return el("div",{}, [table, pager]);
   }
 
   function renderForm(){
