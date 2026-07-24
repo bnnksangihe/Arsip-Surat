@@ -957,6 +957,7 @@
       var contentType = letter.mimeType || "application/octet-stream";
       var base64Data = b64FromArrayBuffer(buf);
       var metadata = {
+        no_agenda: letter.no_agenda,
         no_surat: letter.no_surat, tanggal: letter.tanggal, jenis: letter.jenis,
         perihal: letter.perihal, pihak: letter.pihak, status: letter.status,
         klasifikasi: letter.klasifikasi,
@@ -1098,6 +1099,7 @@
           mimeType: f.mimeType,
           webViewLink: f.webViewLink,
           createdTime: f.createdTime,
+          no_agenda: meta.no_agenda || "",
           no_surat: meta.no_surat || "",
           tanggal: meta.tanggal || "",
           jenis: meta.jenis || "masuk",
@@ -1226,6 +1228,14 @@
       render();
       return;
     }
+    var dupNoSurat = state.letters.some(function(l){
+      return (!editing || l.id !== editing.id) && l.no_surat && l.no_surat.trim().toLowerCase() === fields.no_surat.trim().toLowerCase();
+    });
+    if(dupNoSurat){
+      state.formError = "Nomor surat \u201c" + fields.no_surat + "\u201d sudah dipakai surat lain. Gunakan nomor yang berbeda.";
+      render();
+      return;
+    }
     if(!editing && (!fileEl.files || fileEl.files.length === 0)){
       state.formError = "Pilih berkas surat untuk diunggah.";
       render();
@@ -1257,6 +1267,7 @@
 
     fotoPromise.then(function(foto){
       var metadata = {
+        no_agenda: fields.no_agenda || "",
         no_surat: fields.no_surat,
         tanggal: fields.tanggal,
         jenis: fields.jenis,
@@ -1356,6 +1367,7 @@
     var letter = state.letters.find(function(l){ return l.id === id; });
     if(!letter) return Promise.reject();
     var metadata = {
+      no_agenda: letter.no_agenda,
       no_surat: letter.no_surat, tanggal: letter.tanggal, jenis: letter.jenis,
       perihal: letter.perihal, pihak: letter.pihak, klasifikasi: letter.klasifikasi,
       status: patch.status !== undefined ? patch.status : letter.status,
@@ -1449,7 +1461,7 @@
       }
       if(state.search){
         var s = state.search.toLowerCase();
-        var hay = (l.no_surat+" "+l.perihal+" "+l.pihak+" "+l.name+" "+l.klasifikasi).toLowerCase();
+        var hay = (l.no_agenda+" "+l.no_surat+" "+l.perihal+" "+l.pihak+" "+l.name+" "+l.klasifikasi).toLowerCase();
         if(hay.indexOf(s) === -1) return false;
       }
       return true;
@@ -1472,6 +1484,7 @@
     }
     var data = rows.map(function(l){
       return {
+        "No. Agenda": l.no_agenda || "",
         "No. Surat": l.no_surat,
         "Tanggal": l.tanggal,
         "Jenis": l.jenis === "keluar" ? "Keluar" : "Masuk",
@@ -1484,7 +1497,7 @@
       };
     });
     var ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [{wch:20},{wch:12},{wch:10},{wch:40},{wch:34},{wch:24},{wch:16},{wch:35},{wch:40}];
+    ws["!cols"] = [{wch:14},{wch:20},{wch:12},{wch:10},{wch:40},{wch:34},{wch:24},{wch:16},{wch:35},{wch:40}];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Arsip Surat");
     XLSX.writeFile(wb, filename);
@@ -1661,6 +1674,7 @@
     var rows = allRows.slice(startIdx, startIdx + state.pageSize);
 
     var thead = el("thead",{}, [el("tr",{}, [
+      el("th",{}, ["No. Agenda"]),
       el("th",{}, ["No. surat"]),
       el("th",{}, ["Tanggal"]),
       el("th",{}, ["Perihal"]),
@@ -1688,6 +1702,7 @@
       }
 
       return el("tr",{}, [
+        el("td",{}, [el("span",{class:"no-surat"}, [l.no_agenda || "\u2013"])]),
         el("td",{}, [
           el("span",{class:"no-surat"}, [l.no_surat || "\u2013"]),
           l.klasifikasi ? el("div",{class:"sub-cell", title:l.klasifikasi}, [l.klasifikasi.split(" \u2014 ")[0]]) : null
@@ -1729,6 +1744,7 @@
 
   function renderForm(){
     var editing = state.editingId ? state.letters.find(function(l){ return l.id === state.editingId; }) : null;
+    var noAgenda = el("input",{type:"text", placeholder:"012/2026", value: editing ? (editing.no_agenda || "") : ""});
     var noSurat = el("input",{type:"text", placeholder:"005/UND/VII/2026", value: editing ? editing.no_surat : ""});
     var tanggal = el("input",{type:"date", value: editing ? editing.tanggal : ""});
     var jenis = el("select",{}, [
@@ -1801,6 +1817,7 @@
 
     var saveBtn = el("button",{class:"btn btn-primary", onclick:function(){
       submitForm({
+        no_agenda: noAgenda.value.trim(),
         no_surat: noSurat.value.trim(),
         tanggal: tanggal.value,
         jenis: jenis.value,
@@ -1818,6 +1835,7 @@
       errorBox,
       klasifikasiList,
       el("div",{class:"form-grid"}, [
+        el("div",{}, [el("label",{}, ["No. Agenda"]), noAgenda]),
         el("div",{}, [el("label",{}, ["Nomor surat"]), noSurat]),
         el("div",{}, [el("label",{}, ["Tanggal"]), tanggal]),
         el("div",{}, [el("label",{}, ["Jenis"]), jenis]),
@@ -1920,10 +1938,11 @@
       tableBody = el("div",{class:"report-table-wrap"}, [
         el("table",{class:"ledger"}, [
           el("thead",{}, [el("tr",{}, [
-            el("th",{}, ["No. surat"]), el("th",{}, ["Tanggal"]), el("th",{}, ["Perihal"]), el("th",{}, ["Jenis"]), el("th",{}, ["Status"])
+            el("th",{}, ["No. Agenda"]), el("th",{}, ["No. surat"]), el("th",{}, ["Tanggal"]), el("th",{}, ["Perihal"]), el("th",{}, ["Jenis"]), el("th",{}, ["Status"])
           ])]),
           el("tbody",{}, res.rows.map(function(l){
             return el("tr",{}, [
+              el("td",{}, [el("span",{class:"no-surat"}, [l.no_agenda || "\u2013"])]),
               el("td",{}, [el("span",{class:"no-surat"}, [l.no_surat || "\u2013"])]),
               el("td",{}, [fmtDate(l.tanggal)]),
               el("td",{}, [l.perihal || "\u2013"]),
