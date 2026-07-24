@@ -1785,10 +1785,12 @@
     function syncStatusVisibility(){
       var hide = jenis.value === "keluar";
       statusField.style.display = hide ? "none" : "";
-      catatanField.style.display = hide ? "none" : "";
-      fotoField.style.display = hide ? "none" : "";
+      var hideCatatan = hide || status.value !== "selesai";
+      catatanField.style.display = hideCatatan ? "none" : "";
+      fotoField.style.display = hideCatatan ? "none" : "";
     }
     jenis.addEventListener("change", syncStatusVisibility);
+    status.addEventListener("change", syncStatusVisibility);
     syncStatusVisibility();
 
     var fileRow = editing
