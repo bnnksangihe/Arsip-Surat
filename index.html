@@ -1296,6 +1296,15 @@
         disposisi_foto_mime: foto.mime
       };
 
+      // Status "Selesai" hanya sah kalau ada catatan tulisan ATAU foto/scan disposisi.
+      // Kalau lampiran dihapus/kosong dan catatan juga kosong, turunkan lagi ke "Baru"
+      // supaya kelihatan masih ada yang perlu ditindaklanjuti.
+      var statusDowngraded = false;
+      if(!isKeluar && metadata.status === "selesai" && !metadata.disposisi_foto_link && !metadata.catatan_disposisi){
+        metadata.status = "baru";
+        statusDowngraded = true;
+      }
+
       if(editing){
         fetch("https://www.googleapis.com/drive/v3/files/"+editing.id, {
           method:"PATCH",
@@ -1310,6 +1319,8 @@
           }
           if(fotoUploadFailed){
             showToast("error","Data surat disimpan, tapi foto/scan disposisi gagal diunggah. Foto/scan lama (jika ada) tetap dipakai \u2014 coba unggah ulang lewat \u201cUbah data\u201d.");
+          } else if(statusDowngraded){
+            showToast("info","Data surat diperbarui. Status dikembalikan ke \u201cBaru\u201d karena catatan & lampiran disposisi kosong.");
           } else {
             showToast("info","Data surat diperbarui.");
           }
@@ -1359,6 +1370,8 @@
           loadLetters();
           if(fotoUploadFailed){
             showToast("error","Surat berhasil diarsipkan, tapi foto/scan disposisi gagal diunggah. Coba unggah lewat \u201cUbah data\u201d.");
+          } else if(statusDowngraded){
+            showToast("info","Surat berhasil diarsipkan. Status disposisi diset \u201cBaru\u201d karena catatan & lampiran disposisi kosong.");
           } else {
             showToast("info","Surat berhasil diarsipkan.");
           }
@@ -1486,6 +1499,16 @@
     function finishPatch(fotoLink, fotoId, fotoMime, fotoFailed){
       var patch = {status: status, catatan_disposisi: note};
       if(fotoLink !== undefined){ patch.disposisi_foto_link = fotoLink; patch.disposisi_foto_id = fotoId; patch.disposisi_foto_mime = fotoMime || ""; }
+
+      // Status "Selesai" hanya sah kalau ada catatan tulisan ATAU foto/scan disposisi.
+      // Kalau lampiran dihapus/kosong dan catatan juga kosong, turunkan lagi ke "Baru".
+      var finalFotoLink = fotoLink !== undefined ? fotoLink : (letter ? letter.disposisi_foto_link : "");
+      var statusDowngraded = false;
+      if(patch.status === "selesai" && !finalFotoLink && !(note || "").trim()){
+        patch.status = "baru";
+        statusDowngraded = true;
+      }
+
       patchLetterMeta(id, patch).then(function(){
         state.disposisiSaving = false;
         var newFotoId = fotoId !== undefined ? (fotoId || "") : oldFotoId;
@@ -1496,6 +1519,9 @@
           state.disposisiFotoFile = null;
           render();
           showToast("error","Catatan & status disposisi tersimpan, tapi foto/scan gagal diunggah. Foto/scan lama (jika ada) tetap dipakai \u2014 silakan pilih ulang berkasnya lalu simpan lagi.");
+        } else if(statusDowngraded){
+          closeDisposisiModal();
+          showToast("info","Catatan disposisi disimpan. Status dikembalikan ke \u201cBaru\u201d karena catatan & lampiran disposisi kosong.");
         } else {
           closeDisposisiModal();
           showToast("info","Catatan disposisi disimpan.");
@@ -1956,7 +1982,7 @@
     textarea.addEventListener("input", function(e){ state.disposisiNoteDraft = e.target.value; });
 
     var statusNote = isCompleting
-      ? el("p",{class:"hint"}, ["Status akan diubah menjadi ", el("strong",{},["Selesai"]), " setelah catatan disimpan."])
+      ? el("p",{class:"hint"}, ["Status akan diubah menjadi ", el("strong",{},["Selesai"]), " setelah catatan disimpan. Kalau catatan tulisan dan foto/scan sama-sama kosong, status otomatis dikembalikan ke ", el("strong",{},["Baru"]), "."])
       : el("p",{class:"hint"}, ["Mengubah atau menambahkan catatan tanpa mengubah status surat."]);
 
     // --- Foto/scan disposisi ---
