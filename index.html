@@ -811,6 +811,7 @@
     statusFilter: "semua",
     showForm: false,
     editingId: null,
+    formDraft: null,
     formError: "",
     formFotoFile: null,
     formFotoRemove: false,
@@ -1202,6 +1203,7 @@
   function openAddForm(){
     state.showForm = true;
     state.editingId = null;
+    state.formDraft = null;
     state.formError = "";
     state.formFotoFile = null;
     state.formFotoRemove = false;
@@ -1210,6 +1212,7 @@
   function openEditForm(id){
     state.showForm = true;
     state.editingId = id;
+    state.formDraft = null;
     state.formError = "";
     state.formFotoFile = null;
     state.formFotoRemove = false;
@@ -1218,6 +1221,7 @@
   function closeForm(){
     state.showForm = false;
     state.editingId = null;
+    state.formDraft = null;
     render();
   }
 
@@ -1744,22 +1748,45 @@
 
   function renderForm(){
     var editing = state.editingId ? state.letters.find(function(l){ return l.id === state.editingId; }) : null;
-    var noAgenda = el("input",{type:"text", placeholder:"012/2026", value: editing ? (editing.no_agenda || "") : ""});
-    var noSurat = el("input",{type:"text", placeholder:"005/UND/VII/2026", value: editing ? editing.no_surat : ""});
-    var tanggal = el("input",{type:"date", value: editing ? editing.tanggal : ""});
-    var jenis = el("select",{}, [
+    if(!state.formDraft){
+      state.formDraft = {
+        no_agenda: editing ? (editing.no_agenda || "") : "",
+        no_surat: editing ? (editing.no_surat || "") : "",
+        tanggal: editing ? (editing.tanggal || "") : "",
+        jenis: editing ? editing.jenis : "masuk",
+        perihal: editing ? (editing.perihal || "") : "",
+        pihak: editing ? (editing.pihak || "") : "",
+        status: editing && editing.status ? editing.status : "baru",
+        klasifikasi: editing ? (editing.klasifikasi || "") : "",
+        catatan_disposisi: editing ? (editing.catatan_disposisi || "") : ""
+      };
+    }
+    var draft = state.formDraft;
+    var noAgenda = el("input",{type:"text", placeholder:"012/2026", value: draft.no_agenda, "data-focusid":"f-no_agenda"});
+    noAgenda.addEventListener("input", function(e){ draft.no_agenda = e.target.value; });
+    var noSurat = el("input",{type:"text", placeholder:"005/UND/VII/2026", value: draft.no_surat, "data-focusid":"f-no_surat"});
+    noSurat.addEventListener("input", function(e){ draft.no_surat = e.target.value; });
+    var tanggal = el("input",{type:"date", value: draft.tanggal, "data-focusid":"f-tanggal"});
+    tanggal.addEventListener("input", function(e){ draft.tanggal = e.target.value; });
+    var jenis = el("select",{"data-focusid":"f-jenis"}, [
       el("option",{value:"masuk"}, ["Surat masuk"]),
       el("option",{value:"keluar"}, ["Surat keluar"])
     ]);
-    jenis.value = editing ? editing.jenis : "masuk";
-    var perihal = el("input",{type:"text", placeholder:"Undangan rapat koordinasi\u2026", value: editing ? editing.perihal : ""});
-    var pihak = el("input",{type:"text", placeholder:"Nama instansi / orang", value: editing ? editing.pihak : ""});
-    var status = el("select",{}, STATUS_OPTIONS.map(function(o){ return el("option",{value:o.v}, [o.label]); }));
-    status.value = editing && editing.status ? editing.status : "baru";
-    var klasifikasi = el("input",{type:"text", list:"klasifikasi-datalist", placeholder:"Ketik kode atau kata kunci, mis. \u201cKA.00.00\u201d atau \u201csurat masuk\u201d\u2026", value: editing ? (editing.klasifikasi || "") : ""});
+    jenis.value = draft.jenis;
+    jenis.addEventListener("change", function(e){ draft.jenis = e.target.value; syncStatusVisibility(); });
+    var perihal = el("input",{type:"text", placeholder:"Undangan rapat koordinasi\u2026", value: draft.perihal, "data-focusid":"f-perihal"});
+    perihal.addEventListener("input", function(e){ draft.perihal = e.target.value; });
+    var pihak = el("input",{type:"text", placeholder:"Nama instansi / orang", value: draft.pihak, "data-focusid":"f-pihak"});
+    pihak.addEventListener("input", function(e){ draft.pihak = e.target.value; });
+    var status = el("select",{"data-focusid":"f-status"}, STATUS_OPTIONS.map(function(o){ return el("option",{value:o.v}, [o.label]); }));
+    status.value = draft.status;
+    status.addEventListener("change", function(e){ draft.status = e.target.value; syncStatusVisibility(); });
+    var klasifikasi = el("input",{type:"text", list:"klasifikasi-datalist", placeholder:"Ketik kode atau kata kunci, mis. \u201cKA.00.00\u201d atau \u201csurat masuk\u201d\u2026", value: draft.klasifikasi, "data-focusid":"f-klasifikasi"});
+    klasifikasi.addEventListener("input", function(e){ draft.klasifikasi = e.target.value; });
     var klasifikasiList = el("datalist",{id:"klasifikasi-datalist"}, KLASIFIKASI_LIST.map(function(k){ return el("option",{value:k}); }));
-    var catatan = el("textarea",{rows:2, placeholder:"Hasil/instruksi disposisi atasan (opsional)\u2026"});
-    catatan.value = editing ? (editing.catatan_disposisi || "") : "";
+    var catatan = el("textarea",{rows:2, placeholder:"Hasil/instruksi disposisi atasan (opsional)\u2026", "data-focusid":"f-catatan"});
+    catatan.value = draft.catatan_disposisi;
+    catatan.addEventListener("input", function(e){ draft.catatan_disposisi = e.target.value; });
     var fileInput = el("input",{type:"file"});
 
     var statusField = el("div",{}, [el("label",{}, ["Status disposisi"]), status]);
@@ -1805,8 +1832,6 @@
       catatanField.style.display = hideCatatan ? "none" : "";
       fotoField.style.display = hideCatatan ? "none" : "";
     }
-    jenis.addEventListener("change", syncStatusVisibility);
-    status.addEventListener("change", syncStatusVisibility);
     syncStatusVisibility();
 
     var fileRow = editing
