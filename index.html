@@ -1105,6 +1105,7 @@
           catatan_disposisi: meta.catatan_disposisi || "",
           disposisi_foto_link: meta.disposisi_foto_link || "",
           disposisi_foto_id: meta.disposisi_foto_id || "",
+          disposisi_foto_mime: meta.disposisi_foto_mime || "",
           klasifikasi: meta.klasifikasi || ""
         };
       });
@@ -1327,7 +1328,8 @@
       status: patch.status !== undefined ? patch.status : letter.status,
       catatan_disposisi: patch.catatan_disposisi !== undefined ? patch.catatan_disposisi : letter.catatan_disposisi,
       disposisi_foto_link: patch.disposisi_foto_link !== undefined ? patch.disposisi_foto_link : letter.disposisi_foto_link,
-      disposisi_foto_id: patch.disposisi_foto_id !== undefined ? patch.disposisi_foto_id : letter.disposisi_foto_id
+      disposisi_foto_id: patch.disposisi_foto_id !== undefined ? patch.disposisi_foto_id : letter.disposisi_foto_id,
+      disposisi_foto_mime: patch.disposisi_foto_mime !== undefined ? patch.disposisi_foto_mime : letter.disposisi_foto_mime
     };
     return fetch("https://www.googleapis.com/drive/v3/files/"+id, {
       method:"PATCH",
@@ -1338,6 +1340,7 @@
       letter.catatan_disposisi = metadata.catatan_disposisi;
       letter.disposisi_foto_link = metadata.disposisi_foto_link;
       letter.disposisi_foto_id = metadata.disposisi_foto_id;
+      letter.disposisi_foto_mime = metadata.disposisi_foto_mime;
       render();
     });
   }
@@ -1373,9 +1376,9 @@
     state.disposisiSaving = true;
     render();
 
-    function finishPatch(fotoLink, fotoId){
+    function finishPatch(fotoLink, fotoId, fotoMime){
       var patch = {status: status, catatan_disposisi: note};
-      if(fotoLink !== undefined){ patch.disposisi_foto_link = fotoLink; patch.disposisi_foto_id = fotoId; }
+      if(fotoLink !== undefined){ patch.disposisi_foto_link = fotoLink; patch.disposisi_foto_id = fotoId; patch.disposisi_foto_mime = fotoMime || ""; }
       patchLetterMeta(id, patch).then(function(){
         state.disposisiSaving = false;
         closeDisposisiModal();
@@ -1388,17 +1391,17 @@
     }
 
     if(state.disposisiFotoRemove){
-      finishPatch("", "");
+      finishPatch("", "", "");
     } else if(file){
       uploadDisposisiFoto(file, letter ? letter.no_surat : "").then(function(data){
-        finishPatch(data.webViewLink || "", data.id || "");
+        finishPatch(data.webViewLink || "", data.id || "", file.type || "");
       }).catch(function(){
         state.disposisiSaving = false;
         showToast("error","Gagal mengunggah foto/scan disposisi.");
         render();
       });
     } else {
-      finishPatch(undefined, undefined);
+      finishPatch(undefined, undefined, undefined);
     }
   }
 
@@ -1647,7 +1650,7 @@
         statusCell = el("div",{}, [
           statusSelect,
           l.catatan_disposisi ? el("div",{class:"sub-cell", style:"max-width:180px;", title:l.catatan_disposisi}, [icon("note"), " " + l.catatan_disposisi.slice(0,40) + (l.catatan_disposisi.length>40?"\u2026":"")]) : null,
-          l.disposisi_foto_link ? el("a",{href:l.disposisi_foto_link, target:"_blank", class:"sub-cell", style:"display:block;color:var(--stamp);text-decoration:none;"}, [icon("photo"), " Lihat foto/scan"]) : null
+          l.disposisi_foto_link ? el("a",{href:l.disposisi_foto_link, target:"_blank", class:"sub-cell", style:"display:block;color:var(--stamp);text-decoration:none;"}, [icon((l.disposisi_foto_mime||"").indexOf("pdf")!==-1 ? "file-type-pdf" : "photo"), " Lihat foto/scan"]) : null
         ]);
       }
 
@@ -1779,9 +1782,10 @@
     var hasExistingFoto = letter.disposisi_foto_link && !state.disposisiFotoRemove;
     var fotoSection = [];
     if(hasExistingFoto){
+      var isPdf = (letter.disposisi_foto_mime || "").indexOf("pdf") !== -1;
       fotoSection.push(el("div",{style:"display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--paper);border:1px solid var(--paper-line);border-radius:6px;margin-bottom:8px;"}, [
-        icon("photo"),
-        el("a",{href:letter.disposisi_foto_link, target:"_blank", style:"font-size:12.5px;color:var(--stamp);flex:1;"}, ["Lihat foto/scan disposisi yang tersimpan"]),
+        icon(isPdf ? "file-type-pdf" : "photo"),
+        el("a",{href:letter.disposisi_foto_link, target:"_blank", style:"font-size:12.5px;color:var(--stamp);flex:1;"}, [isPdf ? "Lihat berkas PDF disposisi yang tersimpan" : "Lihat foto/scan disposisi yang tersimpan"]),
         el("button",{class:"icon-btn", title:"Hapus foto ini", onclick:function(){ state.disposisiFotoRemove = true; render(); }}, [icon("trash")])
       ]));
     } else if(state.disposisiFotoRemove){
@@ -1789,7 +1793,7 @@
         el("button",{onclick:function(){ state.disposisiFotoRemove = false; render(); }, style:"margin-left:8px;border:none;background:none;color:var(--stamp);text-decoration:underline;cursor:pointer;font-size:12px;"}, ["Batalkan"])
       ]));
     }
-    var fotoInput = el("input",{type:"file", accept:"image/*", capture:"environment"});
+    var fotoInput = el("input",{type:"file", accept:"image/*,application/pdf"});
     fotoInput.addEventListener("change", function(e){
       state.disposisiFotoFile = e.target.files[0] || null;
       render();
@@ -1798,7 +1802,7 @@
       el("label",{}, [hasExistingFoto ? "Ganti foto/scan" : "Foto/scan disposisi (opsional)"]),
       fotoInput,
       state.disposisiFotoFile ? el("p",{class:"hint"}, ["Dipilih: " + state.disposisiFotoFile.name]) : null,
-      el("p",{class:"hint"}, ["Bisa foto langsung dari kamera HP (jepret catatan disposisi fisik) atau unggah hasil scan."])
+      el("p",{class:"hint"}, ["Bisa foto dari kamera HP, gambar (JPG/PNG), atau berkas hasil scan berformat PDF."])
     ]));
 
     var saveBtn = el("button",{class:"btn btn-primary", onclick: submitDisposisiNote}, [state.disposisiSaving ? "Menyimpan\u2026" : (isCompleting ? "Simpan \u0026 tandai selesai" : "Simpan catatan")]);
