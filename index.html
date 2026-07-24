@@ -1247,6 +1247,20 @@
       render();
       return;
     }
+
+    // Status tidak boleh diturunkan dari "Selesai" selama masih ada catatan tulisan
+    // atau lampiran foto/scan disposisi yang tersimpan/terisi.
+    var isKeluarCheck = fields.jenis === "keluar";
+    if(!isKeluarCheck && fields.status !== "selesai"){
+      var finalCatatanCheck = fields.catatan_disposisi || (editing ? editing.catatan_disposisi : "") || "";
+      var finalFotoNonEmptyCheck = !!state.formFotoFile || (!!(editing && editing.disposisi_foto_link) && !state.formFotoRemove);
+      if(finalCatatanCheck || finalFotoNonEmptyCheck){
+        state.formError = "Status tidak bisa diubah ke \u201c" + statusLabel(fields.status) + "\u201d selama masih ada catatan atau lampiran disposisi. Hapus catatan & lampiran disposisi dulu kalau memang ingin membuka kembali suratnya.";
+        render();
+        return;
+      }
+    }
+
     state.saving = true;
     state.formError = "";
     render();
@@ -1467,6 +1481,12 @@
   function quickStatus(id, status){
     if(status === "selesai"){
       openDisposisiModal(id, status);
+      return;
+    }
+    var letter = state.letters.find(function(l){ return l.id === id; });
+    if(letter && (letter.catatan_disposisi || letter.disposisi_foto_link)){
+      showToast("error","Status tidak bisa diubah ke \u201c" + statusLabel(status) + "\u201d selama masih ada catatan atau lampiran disposisi. Hapus catatan & lampiran disposisi dulu lewat \u201cUbah data\u201d kalau memang ingin membuka kembali suratnya.");
+      render();
       return;
     }
     patchLetterMeta(id, {status: status}).catch(function(){ showToast("error","Gagal memperbarui status."); });
