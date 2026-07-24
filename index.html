@@ -1305,6 +1305,9 @@
           state.saving = false;
           closeForm();
           loadLetters();
+          if(editing.disposisi_foto_id && editing.disposisi_foto_id !== foto.id){
+            deleteDriveFile(editing.disposisi_foto_id);
+          }
           if(fotoUploadFailed){
             showToast("error","Data surat disimpan, tapi foto/scan disposisi gagal diunggah. Foto/scan lama (jika ada) tetap dipakai \u2014 coba unggah ulang lewat \u201cUbah data\u201d.");
           } else {
@@ -1385,12 +1388,16 @@
   function confirmDeleteLetter(){
     var id = state.deleteConfirmId;
     if(!id) return;
+    var letter = state.letters.find(function(l){ return l.id === id; });
     state.deleting = true;
     render();
     fetch("https://www.googleapis.com/drive/v3/files/"+id, {
       method:"DELETE",
       headers: apiHeaders()
     }).then(function(){
+      if(letter && letter.disposisi_foto_id){
+        deleteDriveFile(letter.disposisi_foto_id);
+      }
       state.letters = state.letters.filter(function(l){ return l.id !== id; });
       state.deleting = false;
       state.deleteConfirmId = null;
@@ -1402,6 +1409,20 @@
       showToast("error","Gagal menghapus surat.");
     });
   }
+
+  // Menghapus file lampiran (foto/scan disposisi) lama dari Google Drive, dipakai
+  // saat lampiran dihapus atau diganti dengan yang baru. Kegagalan di sini tidak
+  // membatalkan aksi utama (simpan/ubah surat) yang sudah berhasil, cukup dicatat saja.
+  function deleteDriveFile(fileId){
+    if(!fileId) return Promise.resolve();
+    return fetch("https://www.googleapis.com/drive/v3/files/"+fileId, {
+      method:"DELETE",
+      headers: apiHeaders()
+    }).catch(function(err){
+      console.warn("Gagal menghapus lampiran lama di Drive:", fileId, err);
+    });
+  }
+
 
   function patchLetterMeta(id, patch){
     var letter = state.letters.find(function(l){ return l.id === id; });
@@ -1458,6 +1479,7 @@
     var status = state.disposisiModalStatus;
     var file = state.disposisiFotoFile;
     var letter = state.letters.find(function(l){ return l.id === id; });
+    var oldFotoId = letter ? (letter.disposisi_foto_id || "") : "";
     state.disposisiSaving = true;
     render();
 
@@ -1466,6 +1488,10 @@
       if(fotoLink !== undefined){ patch.disposisi_foto_link = fotoLink; patch.disposisi_foto_id = fotoId; patch.disposisi_foto_mime = fotoMime || ""; }
       patchLetterMeta(id, patch).then(function(){
         state.disposisiSaving = false;
+        var newFotoId = fotoId !== undefined ? (fotoId || "") : oldFotoId;
+        if(oldFotoId && oldFotoId !== newFotoId){
+          deleteDriveFile(oldFotoId);
+        }
         if(fotoFailed){
           state.disposisiFotoFile = null;
           render();
