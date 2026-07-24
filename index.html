@@ -816,6 +816,8 @@
     formFotoFile: null,
     formFotoRemove: false,
     saving: false,
+    deleteConfirmId: null,
+    deleting: false,
     toast: null,
     clientIdInput: "",
     showReport: false,
@@ -1354,15 +1356,32 @@
     });
   }
 
-  function deleteLetter(id){
+  function openDeleteConfirm(id){
+    state.deleteConfirmId = id;
+    render();
+  }
+  function closeDeleteConfirm(){
+    if(state.deleting) return;
+    state.deleteConfirmId = null;
+    render();
+  }
+  function confirmDeleteLetter(){
+    var id = state.deleteConfirmId;
+    if(!id) return;
+    state.deleting = true;
+    render();
     fetch("https://www.googleapis.com/drive/v3/files/"+id, {
       method:"DELETE",
       headers: apiHeaders()
     }).then(function(){
       state.letters = state.letters.filter(function(l){ return l.id !== id; });
+      state.deleting = false;
+      state.deleteConfirmId = null;
       render();
       showToast("info","Surat dipindahkan ke sampah Drive.");
     }).catch(function(){
+      state.deleting = false;
+      render();
       showToast("error","Gagal menghapus surat.");
     });
   }
@@ -1722,7 +1741,7 @@
           el("a",{class:"file-link", href:l.webViewLink, target:"_blank", title:"Buka berkas"}, [icon("external-link")]),
           l.jenis !== "keluar" ? el("button",{class:"icon-btn", title:"Catatan disposisi atasan", onclick:function(){ openDisposisiModal(l.id, l.status); }}, [icon("note")]) : null,
           el("button",{class:"icon-btn", title:"Ubah data", onclick:function(){ openEditForm(l.id); }}, [icon("edit")]),
-          el("button",{class:"icon-btn", title:"Hapus", onclick:function(){ deleteLetter(l.id); }}, [icon("trash")])
+          el("button",{class:"icon-btn", title:"Hapus", onclick:function(){ openDeleteConfirm(l.id); }}, [icon("trash")])
         ])])
       ]);
     }));
@@ -2038,6 +2057,23 @@
     return el("div",{class:"modal-backdrop"}, [modal]);
   }
 
+  function renderDeleteConfirmModal(){
+    var letter = state.letters.find(function(l){ return l.id === state.deleteConfirmId; });
+    var label = letter ? (letter.no_surat || letter.perihal || letter.name || "surat ini") : "surat ini";
+    var modal = el("div",{class:"modal", style:"max-width:420px;"}, [
+      el("h2",{}, ["Hapus surat?"]),
+      el("p",{class:"hint", style:"font-size:13.5px;color:var(--ink-soft);margin-bottom:1rem;"}, [
+        "Surat ", el("strong",{},[label]), " akan dipindahkan ke sampah Google Drive. Tindakan ini tidak bisa dibatalkan dari aplikasi ini."
+      ]),
+      el("div",{class:"modal-actions"}, [
+        el("button",{class:"btn", onclick:closeDeleteConfirm}, ["Batal"]),
+        el("button",{class:"btn btn-primary", onclick:confirmDeleteLetter}, [state.deleting ? "Menghapus\u2026" : "Ya, hapus"])
+      ])
+    ]);
+    if(state.deleting) modal.querySelector("button.btn-primary").disabled = true;
+    return el("div",{class:"modal-backdrop"}, [modal]);
+  }
+
   function render(){
     var root = document.getElementById("root");
 
@@ -2077,6 +2113,9 @@
     }
     if(state.showReport){
       root.appendChild(renderReportModal());
+    }
+    if(state.deleteConfirmId){
+      root.appendChild(renderDeleteConfirmModal());
     }
     restoreFocus(focusId, selStart, selEnd);
   }
