@@ -1254,6 +1254,7 @@
     var isKeluar = fields.jenis === "keluar";
 
     // Tentukan foto/scan disposisi: hapus, unggah baru, atau pertahankan yang lama
+    var fotoUploadFailed = false;
     var fotoPromise;
     if(isKeluar){
       fotoPromise = Promise.resolve({link:"", id:"", mime:""});
@@ -1262,6 +1263,14 @@
     } else if(state.formFotoFile){
       fotoPromise = uploadDisposisiFoto(state.formFotoFile, fields.no_surat).then(function(data){
         return {link: data.webViewLink || "", id: data.id || "", mime: state.formFotoFile.type || ""};
+      }).catch(function(){
+        // Upload foto gagal: jangan batalkan penyimpanan data surat, pertahankan foto lama (jika ada)
+        fotoUploadFailed = true;
+        return {
+          link: editing ? (editing.disposisi_foto_link || "") : "",
+          id: editing ? (editing.disposisi_foto_id || "") : "",
+          mime: editing ? (editing.disposisi_foto_mime || "") : ""
+        };
       });
     } else {
       fotoPromise = Promise.resolve({
@@ -1296,7 +1305,11 @@
           state.saving = false;
           closeForm();
           loadLetters();
-          showToast("info","Data surat diperbarui.");
+          if(fotoUploadFailed){
+            showToast("error","Data surat disimpan, tapi foto/scan disposisi gagal diunggah. Foto/scan lama (jika ada) tetap dipakai \u2014 coba unggah ulang lewat \u201cUbah data\u201d.");
+          } else {
+            showToast("info","Data surat diperbarui.");
+          }
         }).catch(function(){
           state.saving = false;
           state.formError = "Gagal menyimpan perubahan.";
@@ -1341,7 +1354,11 @@
           }
           closeForm();
           loadLetters();
-          showToast("info","Surat berhasil diarsipkan.");
+          if(fotoUploadFailed){
+            showToast("error","Surat berhasil diarsipkan, tapi foto/scan disposisi gagal diunggah. Coba unggah lewat \u201cUbah data\u201d.");
+          } else {
+            showToast("info","Surat berhasil diarsipkan.");
+          }
         }).catch(function(){
           state.saving = false;
           state.formError = "Gagal mengunggah berkas.";
@@ -1351,7 +1368,7 @@
       reader.readAsArrayBuffer(file);
     }).catch(function(){
       state.saving = false;
-      state.formError = "Gagal mengunggah foto/scan disposisi.";
+      state.formError = "Gagal menyimpan data surat.";
       render();
     });
   }
@@ -1444,13 +1461,19 @@
     state.disposisiSaving = true;
     render();
 
-    function finishPatch(fotoLink, fotoId, fotoMime){
+    function finishPatch(fotoLink, fotoId, fotoMime, fotoFailed){
       var patch = {status: status, catatan_disposisi: note};
       if(fotoLink !== undefined){ patch.disposisi_foto_link = fotoLink; patch.disposisi_foto_id = fotoId; patch.disposisi_foto_mime = fotoMime || ""; }
       patchLetterMeta(id, patch).then(function(){
         state.disposisiSaving = false;
-        closeDisposisiModal();
-        showToast("info","Catatan disposisi disimpan.");
+        if(fotoFailed){
+          state.disposisiFotoFile = null;
+          render();
+          showToast("error","Catatan & status disposisi tersimpan, tapi foto/scan gagal diunggah. Foto/scan lama (jika ada) tetap dipakai \u2014 silakan pilih ulang berkasnya lalu simpan lagi.");
+        } else {
+          closeDisposisiModal();
+          showToast("info","Catatan disposisi disimpan.");
+        }
       }).catch(function(){
         state.disposisiSaving = false;
         showToast("error","Gagal menyimpan catatan disposisi.");
@@ -1464,9 +1487,8 @@
       uploadDisposisiFoto(file, letter ? letter.no_surat : "").then(function(data){
         finishPatch(data.webViewLink || "", data.id || "", file.type || "");
       }).catch(function(){
-        state.disposisiSaving = false;
-        showToast("error","Gagal mengunggah foto/scan disposisi.");
-        render();
+        // Upload foto gagal: tetap simpan catatan & status, pertahankan foto lama
+        finishPatch(undefined, undefined, undefined, true);
       });
     } else {
       finishPatch(undefined, undefined, undefined);
