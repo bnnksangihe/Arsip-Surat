@@ -1086,11 +1086,11 @@
   function loadLetters(){
     state.loadingLetters = true;
     render();
-    var q = "'"+state.folderId+"' in parents and trashed=false";
+    var q = "'"+state.folderId+"' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'";
     fetch("https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&fields=files(id,name,description,createdTime,webViewLink,mimeType)&orderBy=createdTime desc&pageSize=200", {
       headers: apiHeaders()
     }).then(function(r){ return r.json(); }).then(function(data){
-      var files = data.files || [];
+      var files = (data.files || []).filter(function(f){ return f.mimeType !== "application/vnd.google-apps.folder"; });
       state.letters = files.map(function(f){
         var meta = {};
         try{ meta = JSON.parse(f.description || "{}"); }catch(e){ meta = {}; }
