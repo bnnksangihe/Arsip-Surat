@@ -812,6 +812,8 @@
     showForm: false,
     editingId: null,
     formError: "",
+    formFotoFile: null,
+    formFotoRemove: false,
     saving: false,
     toast: null,
     clientIdInput: "",
@@ -1199,12 +1201,16 @@
     state.showForm = true;
     state.editingId = null;
     state.formError = "";
+    state.formFotoFile = null;
+    state.formFotoRemove = false;
     render();
   }
   function openEditForm(id){
     state.showForm = true;
     state.editingId = id;
     state.formError = "";
+    state.formFotoFile = null;
+    state.formFotoRemove = false;
     render();
   }
   function closeForm(){
@@ -1229,81 +1235,108 @@
     state.formError = "";
     render();
 
-    var metadata = {
-      no_surat: fields.no_surat,
-      tanggal: fields.tanggal,
-      jenis: fields.jenis,
-      perihal: fields.perihal,
-      pihak: fields.pihak,
-      status: fields.status,
-      klasifikasi: fields.klasifikasi || "",
-      catatan_disposisi: fields.jenis === "keluar" ? "" : (fields.catatan_disposisi || (editing ? editing.catatan_disposisi : "") || ""),
-      disposisi_foto_link: fields.jenis === "keluar" ? "" : (editing ? (editing.disposisi_foto_link || "") : ""),
-      disposisi_foto_id: fields.jenis === "keluar" ? "" : (editing ? (editing.disposisi_foto_id || "") : "")
-    };
+    var isKeluar = fields.jenis === "keluar";
 
-    if(editing){
-      fetch("https://www.googleapis.com/drive/v3/files/"+editing.id, {
-        method:"PATCH",
-        headers: apiHeaders({"Content-Type":"application/json"}),
-        body: JSON.stringify({description: JSON.stringify(metadata)})
-      }).then(function(r){ return r.json(); }).then(function(){
-        state.saving = false;
-        closeForm();
-        loadLetters();
-        showToast("info","Data surat diperbarui.");
-      }).catch(function(){
-        state.saving = false;
-        state.formError = "Gagal menyimpan perubahan.";
-        render();
+    // Tentukan foto/scan disposisi: hapus, unggah baru, atau pertahankan yang lama
+    var fotoPromise;
+    if(isKeluar){
+      fotoPromise = Promise.resolve({link:"", id:"", mime:""});
+    } else if(state.formFotoRemove){
+      fotoPromise = Promise.resolve({link:"", id:"", mime:""});
+    } else if(state.formFotoFile){
+      fotoPromise = uploadDisposisiFoto(state.formFotoFile, fields.no_surat).then(function(data){
+        return {link: data.webViewLink || "", id: data.id || "", mime: state.formFotoFile.type || ""};
       });
-      return;
+    } else {
+      fotoPromise = Promise.resolve({
+        link: editing ? (editing.disposisi_foto_link || "") : "",
+        id: editing ? (editing.disposisi_foto_id || "") : "",
+        mime: editing ? (editing.disposisi_foto_mime || "") : ""
+      });
     }
 
-    var file = fileEl.files[0];
-    var reader = new FileReader();
-    reader.onload = function(e){
-      var boundary = "arsipsurat_boundary_29a4";
-      var delimiter = "\r\n--" + boundary + "\r\n";
-      var closeDelim = "\r\n--" + boundary + "--";
-      var contentType = file.type || "application/octet-stream";
-      var base64Data = b64FromArrayBuffer(e.target.result);
-      var driveMeta = {
-        name: fields.no_surat.replace(/[\/\\]/g,"-") + " - " + fields.perihal.slice(0,60),
-        parents: [state.folderId],
-        description: JSON.stringify(metadata)
+    fotoPromise.then(function(foto){
+      var metadata = {
+        no_surat: fields.no_surat,
+        tanggal: fields.tanggal,
+        jenis: fields.jenis,
+        perihal: fields.perihal,
+        pihak: fields.pihak,
+        status: fields.status,
+        klasifikasi: fields.klasifikasi || "",
+        catatan_disposisi: isKeluar ? "" : (fields.catatan_disposisi || (editing ? editing.catatan_disposisi : "") || ""),
+        disposisi_foto_link: foto.link,
+        disposisi_foto_id: foto.id,
+        disposisi_foto_mime: foto.mime
       };
-      var body =
-        delimiter +
-        "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-        JSON.stringify(driveMeta) +
-        delimiter +
-        "Content-Type: " + contentType + "\r\n" +
-        "Content-Transfer-Encoding: base64\r\n\r\n" +
-        base64Data +
-        closeDelim;
 
-      fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
-        method:"POST",
-        headers: apiHeaders({"Content-Type":'multipart/related; boundary="'+boundary+'"'}),
-        body: body
-      }).then(function(r){ return r.json(); }).then(function(data){
-        state.saving = false;
-        if(data.error){
-          state.formError = "Gagal mengunggah: " + (data.error.message || "coba lagi.");
+      if(editing){
+        fetch("https://www.googleapis.com/drive/v3/files/"+editing.id, {
+          method:"PATCH",
+          headers: apiHeaders({"Content-Type":"application/json"}),
+          body: JSON.stringify({description: JSON.stringify(metadata)})
+        }).then(function(r){ return r.json(); }).then(function(){
+          state.saving = false;
+          closeForm();
+          loadLetters();
+          showToast("info","Data surat diperbarui.");
+        }).catch(function(){
+          state.saving = false;
+          state.formError = "Gagal menyimpan perubahan.";
           render();
-          return;
-        }
-        closeForm();
-        loadLetters();
-        showToast("info","Surat berhasil diarsipkan.");
-      }).catch(function(){
-        state.saving = false;
-        state.formError = "Gagal mengunggah berkas.";
-        render();
-      });
-    };
-    reader.readAsArrayBuffer(file);
+        });
+        return;
+      }
+
+      var file = fileEl.files[0];
+      var reader = new FileReader();
+      reader.onload = function(e){
+        var boundary = "arsipsurat_boundary_29a4";
+        var delimiter = "\r\n--" + boundary + "\r\n";
+        var closeDelim = "\r\n--" + boundary + "--";
+        var contentType = file.type || "application/octet-stream";
+        var base64Data = b64FromArrayBuffer(e.target.result);
+        var driveMeta = {
+          name: fields.no_surat.replace(/[\/\\]/g,"-") + " - " + fields.perihal.slice(0,60),
+          parents: [state.folderId],
+          description: JSON.stringify(metadata)
+        };
+        var body =
+          delimiter +
+          "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+          JSON.stringify(driveMeta) +
+          delimiter +
+          "Content-Type: " + contentType + "\r\n" +
+          "Content-Transfer-Encoding: base64\r\n\r\n" +
+          base64Data +
+          closeDelim;
+
+        fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+          method:"POST",
+          headers: apiHeaders({"Content-Type":'multipart/related; boundary="'+boundary+'"'}),
+          body: body
+        }).then(function(r){ return r.json(); }).then(function(data){
+          state.saving = false;
+          if(data.error){
+            state.formError = "Gagal mengunggah: " + (data.error.message || "coba lagi.");
+            render();
+            return;
+          }
+          closeForm();
+          loadLetters();
+          showToast("info","Surat berhasil diarsipkan.");
+        }).catch(function(){
+          state.saving = false;
+          state.formError = "Gagal mengunggah berkas.";
+          render();
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }).catch(function(){
+      state.saving = false;
+      state.formError = "Gagal mengunggah foto/scan disposisi.";
+      render();
+    });
   }
 
   function deleteLetter(id){
@@ -1714,11 +1747,46 @@
     var fileInput = el("input",{type:"file"});
 
     var statusField = el("div",{}, [el("label",{}, ["Status disposisi"]), status]);
-    var catatanField = el("div",{class:"full"}, [el("label",{}, ["Catatan disposisi atasan"]), catatan]);
+    var catatanField = el("div",{class:"full"}, [el("label",{}, ["Catatan disposisi atasan (tulisan)"]), catatan]);
+
+    // --- Foto/scan disposisi (opsional, menyatu dengan form) ---
+    var hasExistingFoto = editing && editing.disposisi_foto_link && !state.formFotoRemove;
+    var fotoBoxWrap = el("div",{}, []);
+    function renderFotoBox(){
+      fotoBoxWrap.innerHTML = "";
+      if(hasExistingFoto){
+        var isPdf = (editing.disposisi_foto_mime || "").indexOf("pdf") !== -1;
+        fotoBoxWrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--paper);border:1px solid var(--paper-line);border-radius:6px;margin-bottom:8px;"}, [
+          icon(isPdf ? "file-type-pdf" : "photo"),
+          el("a",{href:editing.disposisi_foto_link, target:"_blank", style:"font-size:12.5px;color:var(--stamp);flex:1;"}, [isPdf ? "Lihat berkas PDF disposisi yang tersimpan" : "Lihat foto/scan disposisi yang tersimpan"]),
+          el("button",{class:"icon-btn", title:"Hapus foto ini", onclick:function(){ state.formFotoRemove = true; hasExistingFoto = false; renderFotoBox(); }}, [icon("trash")])
+        ]));
+      } else if(state.formFotoRemove){
+        fotoBoxWrap.appendChild(el("p",{class:"hint", style:"color:var(--stamp-dark);"}, ["Foto/scan akan dihapus setelah disimpan. ",
+          el("button",{onclick:function(){ state.formFotoRemove = false; hasExistingFoto = !!(editing && editing.disposisi_foto_link); renderFotoBox(); }, style:"border:none;background:none;color:var(--stamp);text-decoration:underline;cursor:pointer;font-size:12px;"}, ["Batalkan"])
+        ]));
+      }
+    }
+    renderFotoBox();
+    var fotoInput = el("input",{type:"file", accept:"image/*,application/pdf"});
+    var fotoFileLabel = el("p",{class:"hint"}, []);
+    fotoInput.addEventListener("change", function(e){
+      state.formFotoFile = e.target.files[0] || null;
+      fotoFileLabel.textContent = state.formFotoFile ? ("Dipilih: " + state.formFotoFile.name) : "";
+    });
+    var fotoField = el("div",{class:"full"}, [
+      el("label",{}, ["Catatan disposisi atasan (foto/scan)"]),
+      fotoBoxWrap,
+      fotoInput,
+      fotoFileLabel,
+      el("p",{class:"hint"}, ["Bisa foto dari kamera HP, gambar (JPG/PNG), atau berkas PDF hasil scan. Tulisan dan foto/scan boleh diisi salah satu atau keduanya."])
+    ]);
+
     function syncStatusVisibility(){
       var hide = jenis.value === "keluar";
       statusField.style.display = hide ? "none" : "";
       catatanField.style.display = hide ? "none" : "";
+      fotoField.style.display = hide ? "none" : "";
     }
     jenis.addEventListener("change", syncStatusVisibility);
     syncStatusVisibility();
@@ -1756,6 +1824,7 @@
         el("div",{class:"full"}, [el("label",{}, ["Pengirim / penerima"]), pihak]),
         el("div",{class:"full"}, [el("label",{}, ["Klasifikasi Arsip"]), klasifikasi]),
         catatanField,
+        fotoField,
         fileRow
       ]),
       el("div",{class:"modal-actions"}, [
