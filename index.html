@@ -1524,9 +1524,14 @@
       // Kalau lampiran dihapus/kosong dan catatan juga kosong, turunkan lagi ke "Baru".
       var finalFotoLink = fotoLink !== undefined ? fotoLink : (letter ? letter.disposisi_foto_link : "");
       var statusDowngraded = false;
+      var statusUpgraded = false;
       if(patch.status === "selesai" && !finalFotoLink && !(note || "").trim()){
         patch.status = "baru";
         statusDowngraded = true;
+      } else if(patch.status !== "selesai" && (finalFotoLink || (note || "").trim())){
+        // Ada catatan tulisan dan/atau lampiran disposisi tersimpan: status otomatis jadi "Selesai".
+        patch.status = "selesai";
+        statusUpgraded = true;
       }
 
       patchLetterMeta(id, patch).then(function(){
@@ -1542,6 +1547,9 @@
         } else if(statusDowngraded){
           closeDisposisiModal();
           showToast("info","Catatan disposisi disimpan. Status dikembalikan ke \u201cBaru\u201d karena catatan & lampiran disposisi kosong.");
+        } else if(statusUpgraded){
+          closeDisposisiModal();
+          showToast("info","Catatan disposisi disimpan. Status diubah menjadi \u201cSelesai\u201d.");
         } else {
           closeDisposisiModal();
           showToast("info","Catatan disposisi disimpan.");
@@ -1996,14 +2004,18 @@
   function renderDisposisiModal(){
     var letter = state.letters.find(function(l){ return l.id === state.disposisiModalId; });
     if(!letter) return null;
-    var isCompleting = state.disposisiModalStatus === "selesai";
+    // Status "Selesai" otomatis berlaku begitu ada catatan tulisan ATAU foto/scan disposisi
+    // (baik yang sudah tersimpan maupun yang baru dipilih di form ini, dan belum dihapus).
+    var willHaveNote = !!(state.disposisiNoteDraft && state.disposisiNoteDraft.trim());
+    var willHaveFoto = !!state.disposisiFotoFile || !!(letter.disposisi_foto_link && !state.disposisiFotoRemove);
+    var isCompleting = willHaveNote || willHaveFoto;
     var textarea = el("textarea",{rows:4, placeholder:"Tuliskan instruksi atau hasil disposisi dari atasan, mis. \u201cSetujui, teruskan ke bagian keuangan\u201d\u2026 (opsional kalau sudah ada foto/scan)"}, []);
     textarea.value = state.disposisiNoteDraft;
     textarea.addEventListener("input", function(e){ state.disposisiNoteDraft = e.target.value; });
 
     var statusNote = isCompleting
       ? el("p",{class:"hint"}, ["Status akan diubah menjadi ", el("strong",{},["Selesai"]), " setelah catatan disimpan. Kalau catatan tulisan dan foto/scan sama-sama kosong, status otomatis dikembalikan ke ", el("strong",{},["Baru"]), "."])
-      : el("p",{class:"hint"}, ["Mengubah atau menambahkan catatan tanpa mengubah status surat."]);
+      : el("p",{class:"hint"}, ["Belum ada catatan tulisan atau foto/scan \u2014 status surat akan tetap ", el("strong",{},[statusLabel(letter.status)]), " sampai salah satunya diisi."]);
 
     // --- Foto/scan disposisi ---
     var hasExistingFoto = letter.disposisi_foto_link && !state.disposisiFotoRemove;
